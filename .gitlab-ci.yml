@@ -1,0 +1,116 @@
+# Global --------------------------
+
+variables:
+  PIP_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/pip"
+
+cache:
+  key: "${CI_JOB_NAME}"
+  paths:
+    - .cache/pip
+    - .venv
+
+stages:
+  - quality
+  - tests
+  - publish
+
+# Jobs templates ------------------
+
+.install-deps-template: &install-deps
+  before_script:
+    - pip install poetry
+    - poetry --version
+    - poetry config virtualenvs.in-project true
+    - poetry config http-basic.simulation gitlab-ci-token "${CI_JOB_TOKEN}"
+    - poetry install -v
+
+.quality-template: &quality
+  <<: *install-deps
+  image: python:3.7
+  stage: quality
+
+.test-template: &test
+  <<: *install-deps
+  stage: tests
+  script: make test-junit
+  coverage: '/TOTAL\s+\d+\s+\d+\s+\d+\s+\d+\s+(\d{1,2}\%)/'
+  artifacts:
+    reports:
+      cobertura: coverage.xml
+      junit: report.xml
+    when: always
+    expire_in: 1 week
+  only:
+    - master
+    - merge_requests
+    - tags
+
+# Quality jobs ----------------------
+
+check-black:
+  <<: *quality
+  script: make check-black
+
+check-flake8:
+  <<: *quality
+  script: make check-flake8
+
+check-isort:
+  <<: *quality
+  script: make check-isort
+
+check-mypy:
+  <<: *quality
+  script: make check-mypy
+
+check-safety:
+  <<: *quality
+  script: make check-safety
+
+# Tests jobs ------------------------
+
+python3.7:
+  <<: *test
+  image: python:3.7
+
+python3.8:
+  <<: *test
+  image: python:3.8
+
+# Publish jobs ----------------------
+
+gitlab-package:
+  image: python:3.7
+  stage: publish
+  before_script:
+  - pip install poetry
+  - poetry --version
+  - poetry config virtualenvs.in-project true
+  - poetry config http-basic.simulation gitlab-ci-token "${CI_JOB_TOKEN}"
+  - poetry install -v
+  - poetry build
+  # need to use inline username and password since config would use an extra file for basic auth credentials
+  script:
+    - poetry config repositories.gitlab "https://git-service.ait.ac.at/api/v4/projects/${CI_PROJECT_ID}/packages/pypi"
+    - poetry publish -r gitlab -u gitlab-ci-token -p "${CI_JOB_TOKEN}"
+  only:
+    - tags
+
+pages:
+  <<: *install-deps
+  image: python:3.7
+  stage: publish
+  script:
+    - make docs
+    - mv site public
+    # make extra copy of docs for viewing offline (without a server)
+    - make docs-offline
+    - mv site offline-docs
+    - tar -zcf offline-docs.tar.gz offline-docs
+  artifacts:
+    paths:
+      - public
+      - offline-docs.tar.gz
+    expire_in: 1 week
+  only:
+    - master

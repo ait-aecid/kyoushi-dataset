@@ -1,0 +1,73 @@
+site_name: Cyber Range Kyoushi Dataset
+
+site_description: IDS Dataset processing and labeling tool.
+strict: true
+
+theme:
+  name: 'material'
+  logo: images/cr_icon.svg
+  favicon: images/favicon.ico
+  palette:
+    scheme: ait
+
+extra_css:
+  - stylesheets/extra.css
+  - stylesheets/jquery.fancybox.min.css
+
+# Extra javascript
+extra_javascript:
+  - js/jquery-3.5.1.min.js
+  - js/jquery.fancybox.min.js
+
+repo_name: kyoushi/dataset
+repo_url: https://git-service.ait.ac.at/sct-cyberrange/tools/kyoushi/dataset
+# need to set manually since we use a private gitlab instance
+edit_uri: edit/master/docs/
+
+nav:
+- Overview: index.md
+- Contributing: contributing.md
+- License: license.md
+
+markdown_extensions:
+    - admonition
+    - attr_list
+    - mkdocs-click
+    - markdown_include.include
+    - pymdownx.emoji
+    - pymdownx.magiclink
+    - pymdownx.highlight
+    - pymdownx.inlinehilite
+    - pymdownx.keys
+    - pymdownx.tabbed
+    - pymdownx.tasklist
+    - pymdownx.extra
+    - pymdownx.details
+    - toc:
+        permalink: true
+        toc_depth: 3
+
+
+
+plugins:
+- search
+- exclude:
+    glob:
+    - _build/*
+    - build/*
+- mkdocstrings:
+    default_handler: python
+    handlers:
+      python:
+        selection:
+            new_path_syntax: yes
+            filters:
+              - "!^_[^_]"
+              - "!^__class__"
+        rendering:
+          show_source: true
+    watch:
+      - src/cr_kyoushi/dataset
+      - README.md
+      - CONTRIBUTING.md
+- macros:
