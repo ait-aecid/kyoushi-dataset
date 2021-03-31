@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from typing import (
     IO,
+    TYPE_CHECKING,
     Any,
     BinaryIO,
     Dict,
@@ -12,6 +13,12 @@ from typing import (
 )
 
 from ruamel.yaml import YAML
+
+
+if TYPE_CHECKING:
+    from .cli import Info
+else:
+    Info = Any
 
 
 StreamType = Union[BinaryIO, IO[str], io.StringIO]
@@ -51,3 +58,27 @@ def load_variables(sources: Union[Path, Dict[str, Union[Path]]]):
         return variables
     else:
         return load_file(sources)
+
+
+def version_info(cli_info: Info) -> str:
+    """Returns formatted version information about the `cr_kyoushi.simulation package`.
+
+    Adapted from
+    [Pydantic version.py](https://github.com/samuelcolvin/pydantic/blob/master/pydantic/version.py)
+    """
+    import platform
+    import sys
+
+    from pathlib import Path
+
+    from . import __version__
+
+    info = {
+        "cr_kyoushi.dataset version": __version__,
+        "install path": Path(__file__).resolve().parent,
+        "python version": sys.version,
+        "platform": platform.platform(),
+    }
+    return "\n".join(
+        "{:>30} {}".format(k + ":", str(v).replace("\n", " ")) for k, v in info.items()
+    )
