@@ -78,6 +78,9 @@ exclude = '''
 )/
 '''
 
+[tool.poetry.scripts]
+cr-kyoushi-dataset = "cr_kyoushi.dataset.cli:cli"
+
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
