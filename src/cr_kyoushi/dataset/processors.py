@@ -1,6 +1,6 @@
+import copy
 import sys
 
-from functools import lru_cache
 from pathlib import Path
 from typing import (
     Any,
@@ -12,30 +12,26 @@ from typing import (
 )
 
 from elasticsearch import Elasticsearch
-from jinja2.runtime import Undefined
 from pydantic import (
     BaseModel,
     Field,
     parse_obj_as,
-    root_validator,
-    validator,
 )
 
 from .templates import (
-    create_environment,
-    load_variables,
+    render_template,
+    write_template,
 )
+from .utils import load_variables
 
 
 if sys.version_info >= (3, 8):
     from typing import (
-        Literal,
         Protocol,
         runtime_checkable,
     )
 else:
     from typing_extensions import (
-        Literal,
         Protocol,
         runtime_checkable,
     )
@@ -135,11 +131,7 @@ class ProcessorBase(BaseModel):
 
         # handle str and template strings
         if isinstance(data, str):
-            env = create_environment(es=es)
-            value = env.from_string(data).render(**context.load())
-            if isinstance(value, Undefined):
-                value._fail_with_undefined_error()
-            return value
+            return render_template(data, context.load(), es)
 
         # all other basic types are returned as is
         return data
@@ -195,7 +187,7 @@ class ForEachProcessor(ProcessorBase):
     def processors(self) -> List[Dict[str, Any]]:
         processors = []
         for item in self.items:
-            processor = self.processor.copy()
+            processor = copy.deepcopy(self.processor)
             # set the loop var
             if "context" in processor:
                 context = processor["context"]
@@ -229,21 +221,24 @@ class TemplateProcessor(PostProcessorBase):
     )
 
     def execute(self, es: Optional[Elasticsearch] = None) -> None:
-        env = create_environment(es=es)
-
         if self.template_context is not None:
             variables = self.template_context.load()
         else:
             variables = self.context.load()
 
-        template = env.get_template(str(self.src))
-        # render template and write to file
-        template.stream(**variables).dump(str(self.dest.absolute()))
+        write_template(self.src, self.dest.absolute(), variables, es)
 
 
 class ProcessorsLoader:
-    def __init__(self, processors: Dict[str, Any]):
+    def __init__(self, processors: Dict[str, Any] = {}):
         self.processors: Dict[str, Any] = processors
+        self.processors.update(
+            {
+                PrintProcessor.type_: PrintProcessor,
+                TemplateProcessor.type_: TemplateProcessor,
+                ForEachProcessor.type_: ForEachProcessor,
+            }
+        )
 
     def load_processors(
         self,

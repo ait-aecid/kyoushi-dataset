@@ -6,6 +6,7 @@ from typing import (
     IO,
     Any,
     BinaryIO,
+    Dict,
     Text,
     Union,
 )
@@ -40,3 +41,13 @@ def load_file(file: Union[Text, Path]) -> Any:
     elif ext == ".yaml" or ext == ".yml":
         return load_yaml_file(file)
     raise NotImplementedError(f"No file loader supported for {ext} files")
+
+
+def load_variables(sources: Union[Path, Dict[str, Union[Path]]]):
+    if isinstance(sources, dict):
+        variables = {}
+        for key, path in sources.items():
+            variables[key] = load_file(path)
+        return variables
+    else:
+        return load_file(sources)
