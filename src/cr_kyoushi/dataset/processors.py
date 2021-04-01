@@ -1,4 +1,6 @@
 import copy
+import gzip
+import shutil
 import sys
 
 from pathlib import Path
@@ -6,6 +8,7 @@ from typing import (
     Any,
     ClassVar,
     Dict,
+    Iterable,
     List,
     Optional,
     Union,
@@ -221,6 +224,29 @@ class CreateDirectoryProcessor(ProcessorBase):
         self.path.mkdir(parents=self.recursive, exist_ok=True)
 
 
+class GzipProcessor(ProcessorBase):
+    type_: ClassVar = "gzip"
+    path: Path = Field(
+        Path("."),
+        description="The base path to search for the gzipped files.",
+    )
+    glob: Optional[str] = Field(None, description="The file glob expression to use")
+
+    def execute(self, es: Optional[Elasticsearch] = None) -> None:
+        files: Iterable
+        if self.glob is None:
+            files = [self.path]
+        else:
+            files = self.path.glob(self.glob)
+        for gzip_file in files:
+            with gzip.open(gzip_file, "rb") as f_in:
+                # with suffix replaces .gz ending
+                with open(gzip_file.with_suffix(""), "wb") as f_out:
+                    shutil.copyfileobj(f_in, f_out)
+            # delete the gzip file
+            gzip_file.unlink()
+
+
 class ProcessorPipeline:
     def __init__(self, processor_map: Dict[str, Any] = {}):
         self.processor_map: Dict[str, Any] = processor_map
@@ -230,6 +256,7 @@ class ProcessorPipeline:
                 TemplateProcessor.type_: TemplateProcessor,
                 ForEachProcessor.type_: ForEachProcessor,
                 CreateDirectoryProcessor.type_: CreateDirectoryProcessor,
+                GzipProcessor.type_: GzipProcessor,
             }
         )
 
