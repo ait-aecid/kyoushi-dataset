@@ -62,7 +62,7 @@ class ProcessorContext(BaseModel):
         underscore_attrs_are_private = True
 
 
-class _ProcessorBase(Protocol):
+class Processor(Protocol):
     type_: ClassVar[str]
     context_render_exclude: ClassVar[List[str]]
     context: ProcessorContext
@@ -72,26 +72,14 @@ class _ProcessorBase(Protocol):
     def render(cls, context: ProcessorContext, data: Dict[str, Any]) -> Dict[str, Any]:
         ...
 
+    def execute(self, es: Optional[Elasticsearch]) -> None:
+        ...
+
 
 @runtime_checkable
-class ProcessorContainer(_ProcessorBase, Protocol):
+class ProcessorContainer(Processor, Protocol):
     def processors(self) -> List[Dict[str, Any]]:
         ...
-
-
-@runtime_checkable
-class PreProcessor(_ProcessorBase, Protocol):
-    def execute(self) -> None:
-        ...
-
-
-@runtime_checkable
-class PostProcessor(_ProcessorBase, Protocol):
-    def execute(self, es: Elasticsearch) -> None:
-        ...
-
-
-Processor = Union[PreProcessor, PostProcessor]
 
 
 class ProcessorBase(BaseModel):
@@ -153,14 +141,7 @@ class ProcessorBase(BaseModel):
                 data_rendered[key] = val
         return data_rendered
 
-
-class PreProcessorBase(ProcessorBase):
-    def execute(self) -> None:
-        raise NotImplementedError("Incomplete processor implementation!")
-
-
-class PostProcessorBase(ProcessorBase):
-    def execute(self, es: Elasticsearch) -> None:
+    def execute(self, es: Optional[Elasticsearch] = None):
         raise NotImplementedError("Incomplete processor implementation!")
 
 
@@ -202,7 +183,7 @@ class ForEachProcessor(ProcessorBase):
         return processors
 
 
-class PrintProcessor(PostProcessorBase):
+class PrintProcessor(ProcessorBase):
     type_: ClassVar = "print"
     msg: str = Field(..., description="The message to print")
 
@@ -210,7 +191,7 @@ class PrintProcessor(PostProcessorBase):
         print(self.msg)
 
 
-class TemplateProcessor(PostProcessorBase):
+class TemplateProcessor(ProcessorBase):
     type_: ClassVar = "template"
 
     src: Path = Field(..., description="The template file to render")
@@ -229,6 +210,17 @@ class TemplateProcessor(PostProcessorBase):
         write_template(self.src, self.dest.absolute(), variables, es)
 
 
+class CreateDirectoryProcessor(ProcessorBase):
+    type_: ClassVar = "mkdir"
+    path: Path = Field(..., description="The directory path to create")
+    recursive: bool = Field(
+        True, description="If all missing parent directories should als be created"
+    )
+
+    def execute(self, es: Optional[Elasticsearch] = None) -> None:
+        self.path.mkdir(parents=self.recursive, exist_ok=True)
+
+
 class ProcessorPipeline:
     def __init__(self, processor_map: Dict[str, Any] = {}):
         self.processor_map: Dict[str, Any] = processor_map
@@ -237,6 +229,7 @@ class ProcessorPipeline:
                 PrintProcessor.type_: PrintProcessor,
                 TemplateProcessor.type_: TemplateProcessor,
                 ForEachProcessor.type_: ForEachProcessor,
+                CreateDirectoryProcessor.type_: CreateDirectoryProcessor,
             }
         )
         self.processors: List[Processor] = []
@@ -280,9 +273,6 @@ class ProcessorPipeline:
         if self.__loaded:
             for p in self.processors:
                 print(f"Executing - {p.name} ...")
-                if isinstance(p, PostProcessor):
-                    p.execute(es=es)
-                else:
-                    p.execute()
+                p.execute(es=es)
         else:
             raise Exception("Processor not loaded")

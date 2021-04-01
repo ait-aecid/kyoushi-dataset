@@ -55,8 +55,6 @@ def write_yaml_file(data: Any, path: Union[Text, Path]):
     yaml = YAML()
     yaml.indent(mapping=2, sequence=4, offset=2)
     yaml.default_flow_style = False
-    yaml.explicit_end = False
-    yaml.explicit_start = False
 
     # first serialize to json and realod as simple data
     # and then load serialized data and dump it as yaml
