@@ -12,6 +12,7 @@ from typing import (
     Union,
 )
 
+from pydantic import BaseModel
 from ruamel.yaml import YAML
 
 
@@ -82,3 +83,16 @@ def version_info(cli_info: Info) -> str:
     return "\n".join(
         "{:>30} {}".format(k + ":", str(v).replace("\n", " ")) for k, v in info.items()
     )
+
+
+def write_model_to_yaml(model: BaseModel, path: Union[Text, Path]):
+    yaml = YAML()
+    yaml.indent(mapping=2, sequence=4, offset=2)
+    yaml.default_flow_style = False
+
+    # first serialize to json and realod as simple data
+    model_json = json.loads(model.json())
+    # and then load serialized data and dump it as yaml
+    # we have to do this since model.dict() would not serialize sub-models
+    with open(path, "w") as f:
+        yaml.dump(model_json, f)

@@ -9,3 +9,4 @@ class LAYOUT(str, Enum):
     PROCESSING = "processing"
     LABELS = "labels"
     RULES = "rules"
+    CONFIG = "dataset.yaml"

@@ -1,11 +1,14 @@
 import os
 import shutil
 
+from datetime import datetime
 from pathlib import Path
 
 import click
 
 from . import LAYOUT
+from .config import DatasetConfig
+from .utils import write_model_to_yaml
 
 
 class Info:
@@ -95,12 +98,42 @@ def process(info: Info):
     type=CliPath(file_okay=False, readable=True, resolve_path=True),
     help="The processing source directory (containing the process pipelines, templates and rules.",
 )
+@click.option(
+    "--name",
+    type=click.STRING,
+    help="The name to use for the dataset (will be prompted if not supplied)",
+)
+@click.option(
+    "--start",
+    type=click.DateTime(),
+    help="The the datasets observation start time (will be prompted if not supplied)",
+)
+@click.option(
+    "--end",
+    type=click.DateTime(),
+    help="The the datasets observation end time (will be prompted if not supplied)",
+)
+@click.option(
+    "--yes",
+    "-y",
+    "non_interactive",
+    is_flag=True,
+    help="Affirm all confirmation prompts (use for non-interactive mode)",
+)
 @pass_info
-def prepare(info: Info, gather_dir: Path, process_dir: Path):
+def prepare(
+    info: Info,
+    gather_dir: Path,
+    process_dir: Path,
+    name: str,
+    start: datetime,
+    end: datetime,
+    non_interactive: bool,
+):
     # check if the given dataset dir exist and is not empty
     if info.dataset_dir.exists() and any(info.dataset_dir.iterdir()):
         # abort if the user does not confirm
-        click.confirm(
+        non_interactive or click.confirm(
             f"The dataset directory '{info.dataset_dir}' is not empty.\nAre you sure that you want to continue?",
             abort=True,
         )
@@ -112,6 +145,26 @@ def prepare(info: Info, gather_dir: Path, process_dir: Path):
     click.echo("Creating dataset directory structure ...")
     # ensure that the dataset directory exists
     os.makedirs(info.dataset_dir, exist_ok=True)
+
+    click.echo("Creating dataset config file ..")
+    # create dataset config prompt user if CLI args were not supplied
+    dataset_config = DatasetConfig(
+        name=name
+        or click.prompt(
+            "Please enter the name to use for the dataset",
+            default=info.dataset_dir.name,
+            type=click.STRING,
+        ),
+        start=start
+        or click.prompt(
+            "Please enter the datasets observation start time", type=click.DateTime()
+        ),
+        end=end
+        or click.prompt(
+            "Please enter the datasets observation end time", type=click.DateTime()
+        ),
+    )
+    write_model_to_yaml(dataset_config, info.dataset_dir.joinpath(LAYOUT.CONFIG.value))
 
     # create rules and labels directory
     os.makedirs(info.dataset_dir.joinpath(LAYOUT.LABELS.value), exist_ok=True)

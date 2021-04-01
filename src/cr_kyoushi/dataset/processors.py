@@ -229,32 +229,35 @@ class TemplateProcessor(PostProcessorBase):
         write_template(self.src, self.dest.absolute(), variables, es)
 
 
-class ProcessorsLoader:
-    def __init__(self, processors: Dict[str, Any] = {}):
-        self.processors: Dict[str, Any] = processors
-        self.processors.update(
+class ProcessorPipeline:
+    def __init__(self, processor_map: Dict[str, Any] = {}):
+        self.processor_map: Dict[str, Any] = processor_map
+        self.processor_map.update(
             {
                 PrintProcessor.type_: PrintProcessor,
                 TemplateProcessor.type_: TemplateProcessor,
                 ForEachProcessor.type_: ForEachProcessor,
             }
         )
+        self.processors: List[Processor] = []
 
     def load_processors(
         self,
         data: List[Dict[str, Any]],
         es: Optional[Elasticsearch] = None,
-    ) -> List[Processor]:
+    ):
         # pre-validate the processor list
         # check if all processors have a name and type
         parse_obj_as(ProcessorList, data)
 
-        processors = []
+        # reset processor list ensure that we do not
+        # have duplicate processors when calling twice
+        self.processors = []
 
         for p in data:
             # get the processor context and class
             context = p.setdefault("context", {})
-            processor_class = self.processors[p["type"]]
+            processor_class = self.processor_map[p["type"]]
 
             # render the processor template and parse it
             p_rendered = processor_class.render(
@@ -265,7 +268,16 @@ class ProcessorsLoader:
             processor = processor_class.parse_obj(p_rendered)
 
             if isinstance(processor, ProcessorContainer):
-                processors.extend(self.load_processors(processor.processors(), es))
+                self.processors.extend(self.load_processors(processor.processors(), es))
             else:
-                processors.append(processor)
-        return processors
+                self.processors.append(processor)
+
+    def execute(self, data: List[Dict[str, Any]], es: Optional[Elasticsearch] = None):
+        self.load_processors(data, es)
+
+        for p in self.processors:
+            print(f"Executing - {p.name} ...")
+            if isinstance(p, PostProcessor):
+                p.execute(es=es)
+            else:
+                p.execute()
