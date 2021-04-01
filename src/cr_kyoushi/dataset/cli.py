@@ -3,12 +3,20 @@ import shutil
 
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
 import click
 
 from . import LAYOUT
-from .config import DatasetConfig
-from .utils import write_model_to_yaml
+from .config import (
+    DatasetConfig,
+    ProcessingConfig,
+)
+from .processors import ProcessorPipeline
+from .utils import (
+    load_file,
+    write_model_to_yaml,
+)
 
 
 class Info:
@@ -65,6 +73,9 @@ def cli(info: Info, dataset: Path, logstash: Path, elasticsearch: str):
     info.logstash_bin = logstash
     info.elasticsearch_url = elasticsearch
 
+    # change to dataset directory
+    os.chdir(info.dataset_dir)
+
 
 @cli.command()
 @pass_info
@@ -76,11 +87,41 @@ def version(info: Info):
 
 
 @cli.command()
+@click.option(
+    "--config",
+    "-c",
+    type=CliPath(exists=True, dir_okay=False, resolve_path=True),
+    help="The processing configuration file (defaults to dataset/processing/process.yaml)",
+)
 @pass_info
-def process(info: Info):
-    print(
-        f"Processing {info.dataset_dir} with {info.logstash_bin} and saving on {info.elasticsearch_url}"
-    )
+@click.pass_context
+def process(ctx: click.Context, info: Info, config: Optional[Path]):
+    """Process the dataset and prepare it for labeling.
+
+    CONFIG: The processing configuration file.
+    """
+    if config is None:
+        config = Path(info.dataset_dir.joinpath(LAYOUT.PROCESSING_CONFIG.value))
+        if not config.exists or not config.is_file or not os.access(config, os.R_OK):
+            ctx.fail(f"Invalid value for 'CONFIG': File '{config}' is not readable.")
+    processing_config = ProcessingConfig.parse_obj(load_file(config))
+
+    print(processing_config.pre_processors)
+
+    pre_processor = ProcessorPipeline()
+    pre_processor.load_processors(processing_config.pre_processors)
+
+    post_processor = ProcessorPipeline()
+    post_processor.load_processors(processing_config.post_processors)
+
+    click.echo("Running pre-processors ...")
+    pre_processor.execute()
+
+    click.echo("Parsing log files ...")
+    # exec logstash
+
+    click.echo("Running post-processors ...")
+    post_processor.execute()
 
 
 @cli.command()

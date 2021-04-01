@@ -67,3 +67,4 @@ class ProcessingConfig(BaseModel):
         assert (
             "type" in val
         ), f"A processor must have a type, but {val['name']} has none"
+        return val

@@ -240,12 +240,15 @@ class ProcessorPipeline:
             }
         )
         self.processors: List[Processor] = []
+        self.__loaded = False
 
     def load_processors(
         self,
         data: List[Dict[str, Any]],
         es: Optional[Elasticsearch] = None,
     ):
+        # reset in case we error during execution
+        self.__loaded = False
         # pre-validate the processor list
         # check if all processors have a name and type
         parse_obj_as(ProcessorList, data)
@@ -271,13 +274,15 @@ class ProcessorPipeline:
                 self.processors.extend(self.load_processors(processor.processors(), es))
             else:
                 self.processors.append(processor)
+        self.__loaded = True
 
-    def execute(self, data: List[Dict[str, Any]], es: Optional[Elasticsearch] = None):
-        self.load_processors(data, es)
-
-        for p in self.processors:
-            print(f"Executing - {p.name} ...")
-            if isinstance(p, PostProcessor):
-                p.execute(es=es)
-            else:
-                p.execute()
+    def execute(self, es: Optional[Elasticsearch] = None):
+        if self.__loaded:
+            for p in self.processors:
+                print(f"Executing - {p.name} ...")
+                if isinstance(p, PostProcessor):
+                    p.execute(es=es)
+                else:
+                    p.execute()
+        else:
+            raise Exception("Processor not loaded")

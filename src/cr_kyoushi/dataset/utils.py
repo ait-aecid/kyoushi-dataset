@@ -51,6 +51,45 @@ def load_file(file: Union[Text, Path]) -> Any:
     raise NotImplementedError(f"No file loader supported for {ext} files")
 
 
+def write_yaml_file(data: Any, path: Union[Text, Path]):
+    yaml = YAML()
+    yaml.indent(mapping=2, sequence=4, offset=2)
+    yaml.default_flow_style = False
+    yaml.explicit_end = False
+    yaml.explicit_start = False
+
+    # first serialize to json and realod as simple data
+    # and then load serialized data and dump it as yaml
+    # we have to do this since model.dict() would not serialize sub-models
+    with open(path, "w") as f:
+        yaml.dump(data, f)
+
+
+def write_model_to_yaml(model: BaseModel, path: Union[Text, Path]):
+    model_json = json.loads(model.json())
+    write_yaml_file(model_json, path)
+
+
+def write_json_file(data: Any, path: Union[Text, Path]):
+    with open(path, "w") as f:
+        if isinstance(data, BaseModel):
+            f.write(data.json())
+        else:
+            json.dump(data, f)
+
+
+def write_config_file(data: Any, path: Union[Text, Path]):
+    if isinstance(path, Text):
+        path = Path(path)
+
+    ext = path.suffix
+    if ext == ".yaml" or ext == ".yml":
+        write_yaml_file(data, path)
+    # unless yaml ext are defined we always write json
+    else:
+        write_json_file(data, path)
+
+
 def load_variables(sources: Union[Path, Dict[str, Union[Path]]]):
     if isinstance(sources, dict):
         variables = {}
@@ -83,16 +122,3 @@ def version_info(cli_info: Info) -> str:
     return "\n".join(
         "{:>30} {}".format(k + ":", str(v).replace("\n", " ")) for k, v in info.items()
     )
-
-
-def write_model_to_yaml(model: BaseModel, path: Union[Text, Path]):
-    yaml = YAML()
-    yaml.indent(mapping=2, sequence=4, offset=2)
-    yaml.default_flow_style = False
-
-    # first serialize to json and realod as simple data
-    model_json = json.loads(model.json())
-    # and then load serialized data and dump it as yaml
-    # we have to do this since model.dict() would not serialize sub-models
-    with open(path, "w") as f:
-        yaml.dump(model_json, f)

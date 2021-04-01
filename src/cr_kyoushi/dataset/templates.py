@@ -1,9 +1,13 @@
+import re
+
 from pathlib import Path
 from typing import (
     Any,
     Dict,
     List,
+    Mapping,
     Optional,
+    Sequence,
     Text,
     Union,
 )
@@ -13,8 +17,20 @@ from jinja2 import (
     FileSystemLoader,
     StrictUndefined,
     Undefined,
+    contextfunction,
 )
 from jinja2.nativetypes import NativeEnvironment
+
+from .utils import write_config_file
+
+
+def match_any(value: str, regex_list: List[str]) -> bool:
+    return any(re.match(regex, value) for regex in regex_list)
+
+
+@contextfunction
+def get_context(c):
+    return c
 
 
 def create_environment(
@@ -28,6 +44,17 @@ def create_environment(
         loader=FileSystemLoader(templates_dirs),
         undefined=StrictUndefined,
     )
+    custom_tests = {
+        "match_any": match_any,
+    }
+
+    custom_globals = {
+        "context": get_context,
+    }
+
+    env.tests.update(custom_tests)
+    env.globals.update(custom_globals)
+
     return env
 
 
@@ -59,7 +86,18 @@ def write_template(
     es: Optional[Elasticsearch] = None,
 ):
     template_rendered = render_template(src, variables, es)
-
-    with open(dest, "w") as dest_file:
-        dest_file.write(template_rendered)
-    # render template and write to file
+    if (
+        # mappings are converted to json or yaml
+        isinstance(template_rendered, Mapping)
+        # lists are also converted to json
+        or (
+            # need to exclude str types as they are also sequences
+            not isinstance(template_rendered, Text)
+            and isinstance(template_rendered, Sequence)
+        )
+    ):
+        write_config_file(template_rendered, dest)
+    # everything else is coerced to string and written as is
+    else:
+        with open(dest, "w") as dest_file:
+            dest_file.write(str(template_rendered))
