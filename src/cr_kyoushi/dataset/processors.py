@@ -232,10 +232,8 @@ class ProcessorPipeline:
                 CreateDirectoryProcessor.type_: CreateDirectoryProcessor,
             }
         )
-        self.processors: List[Processor] = []
-        self.__loaded = False
 
-    def load_processors(
+    def execute(
         self,
         data: List[Dict[str, Any]],
         es: Optional[Elasticsearch] = None,
@@ -245,10 +243,6 @@ class ProcessorPipeline:
         # pre-validate the processor list
         # check if all processors have a name and type
         parse_obj_as(ProcessorList, data)
-
-        # reset processor list ensure that we do not
-        # have duplicate processors when calling twice
-        self.processors = []
 
         for p in data:
             # get the processor context and class
@@ -264,15 +258,8 @@ class ProcessorPipeline:
             processor = processor_class.parse_obj(p_rendered)
 
             if isinstance(processor, ProcessorContainer):
-                self.processors.extend(self.load_processors(processor.processors(), es))
+                print(f"Expanding processor container - {processor.name} ...")
+                self.execute(processor.processors(), es)
             else:
-                self.processors.append(processor)
-        self.__loaded = True
-
-    def execute(self, es: Optional[Elasticsearch] = None):
-        if self.__loaded:
-            for p in self.processors:
-                print(f"Executing - {p.name} ...")
-                p.execute(es=es)
-        else:
-            raise Exception("Processor not loaded")
+                print(f"Executing - {processor.name} ...")
+                processor.execute(es=es)

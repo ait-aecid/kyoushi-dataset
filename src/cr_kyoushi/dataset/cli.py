@@ -108,20 +108,16 @@ def process(ctx: click.Context, info: Info, config: Optional[Path]):
 
     print(processing_config.pre_processors)
 
-    pre_processor = ProcessorPipeline()
-    pre_processor.load_processors(processing_config.pre_processors)
-
-    post_processor = ProcessorPipeline()
-    post_processor.load_processors(processing_config.post_processors)
+    pipeline_processor = ProcessorPipeline()
 
     click.echo("Running pre-processors ...")
-    pre_processor.execute()
+    pipeline_processor.execute(processing_config.pre_processors)
 
     click.echo("Parsing log files ...")
     # exec logstash
 
     click.echo("Running post-processors ...")
-    post_processor.execute()
+    pipeline_processor.execute(processing_config.post_processors)
 
 
 @cli.command()
