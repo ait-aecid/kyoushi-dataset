@@ -19,13 +19,24 @@ from pydantic import (
     BaseModel,
     Field,
     parse_obj_as,
+    validator,
 )
 
+from .config import (
+    DatasetConfig,
+    LogstashLogConfig,
+    LogstashParserConfig,
+)
+from .elasticsearch import get_transport_variables
 from .templates import (
     render_template,
     write_template,
 )
-from .utils import load_variables
+from .utils import (
+    copy_package_file,
+    create_dirs,
+    load_variables,
+)
 
 
 if sys.version_info >= (3, 8):
@@ -75,7 +86,13 @@ class Processor(Protocol):
     def render(cls, context: ProcessorContext, data: Dict[str, Any]) -> Dict[str, Any]:
         ...
 
-    def execute(self, es: Optional[Elasticsearch]) -> None:
+    def execute(
+        self,
+        dataset_dir: Path,
+        dataset_config: DatasetConfig,
+        parser_config: LogstashParserConfig,
+        es: Elasticsearch,
+    ) -> None:
         ...
 
 
@@ -104,7 +121,7 @@ class ProcessorBase(BaseModel):
         cls,
         context: ProcessorContext,
         data: Any,
-        es: Optional[Elasticsearch] = None,
+        es: Elasticsearch,
     ) -> Any:
         # handle sub dicts
         if isinstance(data, dict):
@@ -132,7 +149,7 @@ class ProcessorBase(BaseModel):
         cls,
         context: ProcessorContext,
         data: Dict[str, Any],
-        es: Optional[Elasticsearch] = None,
+        es: Elasticsearch,
     ) -> Dict[str, Any]:
         # handle main dict
         data_rendered = {}
@@ -144,7 +161,13 @@ class ProcessorBase(BaseModel):
                 data_rendered[key] = val
         return data_rendered
 
-    def execute(self, es: Optional[Elasticsearch] = None):
+    def execute(
+        self,
+        dataset_dir: Path,
+        dataset_config: DatasetConfig,
+        parser_config: LogstashParserConfig,
+        es: Elasticsearch,
+    ):
         raise NotImplementedError("Incomplete processor implementation!")
 
 
@@ -190,7 +213,13 @@ class PrintProcessor(ProcessorBase):
     type_: ClassVar = "print"
     msg: str = Field(..., description="The message to print")
 
-    def execute(self, es: Optional[Elasticsearch] = None) -> None:
+    def execute(
+        self,
+        dataset_dir: Path,
+        dataset_config: DatasetConfig,
+        parser_config: LogstashParserConfig,
+        es: Elasticsearch,
+    ) -> None:
         print(self.msg)
 
 
@@ -204,11 +233,21 @@ class TemplateProcessor(ProcessorBase):
         description="Optional template context if this is not set the processor context is used instead",
     )
 
-    def execute(self, es: Optional[Elasticsearch] = None) -> None:
+    def execute(
+        self,
+        dataset_dir: Path,
+        dataset_config: DatasetConfig,
+        parser_config: LogstashParserConfig,
+        es: Elasticsearch,
+    ) -> None:
         if self.template_context is not None:
             variables = self.template_context.load()
         else:
             variables = self.context.load()
+
+        variables["DATASET_DIR"] = dataset_dir
+        variables["DATASET"] = dataset_config
+        variables["PARSER"] = parser_config
 
         write_template(self.src, self.dest.absolute(), variables, es)
 
@@ -220,7 +259,13 @@ class CreateDirectoryProcessor(ProcessorBase):
         True, description="If all missing parent directories should als be created"
     )
 
-    def execute(self, es: Optional[Elasticsearch] = None) -> None:
+    def execute(
+        self,
+        dataset_dir: Path,
+        dataset_config: DatasetConfig,
+        parser_config: LogstashParserConfig,
+        es: Elasticsearch,
+    ) -> None:
         self.path.mkdir(parents=self.recursive, exist_ok=True)
 
 
@@ -232,7 +277,13 @@ class GzipProcessor(ProcessorBase):
     )
     glob: Optional[str] = Field(None, description="The file glob expression to use")
 
-    def execute(self, es: Optional[Elasticsearch] = None) -> None:
+    def execute(
+        self,
+        dataset_dir: Path,
+        dataset_config: DatasetConfig,
+        parser_config: LogstashParserConfig,
+        es: Elasticsearch,
+    ) -> None:
         files: Iterable
         if self.glob is None:
             files = [self.path]
@@ -247,6 +298,118 @@ class GzipProcessor(ProcessorBase):
             gzip_file.unlink()
 
 
+class LogstashSetupProcessor(ProcessorBase):
+    type_: ClassVar = "logstash.setup"
+    input_config_name: str = Field(
+        "input.conf",
+        description="The name of the log inputs config file. (relative to the pipeline config dir)",
+    )
+    input_template: Path = Field(
+        Path("input.conf.j2"),
+        description="The template to use for the file input plugin configuration",
+    )
+    output_config_name: str = Field(
+        "output.conf",
+        description="The name of the log outputs config file. (relative to the pipeline config dir)",
+    )
+    output_template: Path = Field(
+        Path("output.conf.j2"),
+        description="The template to use for the file output plugin configuration",
+    )
+    logstash_template: Path = Field(
+        Path("logstash.yml.j2"),
+        description="The template to use for the logstash configuration",
+    )
+    piplines_template: Path = Field(
+        Path("pipelines.yml.j2"),
+        description="The template to use for the logstash pipelines configuration",
+    )
+    servers: Dict[str, Any] = Field(
+        ...,
+        description="Dictionary of servers and their log configurations",
+    )
+
+    @validator("servers", each_item=True)
+    def validate_servers(cls, v):
+        assert "logs" in v, "Each server must have a logs configuration"
+        v["logs"] = parse_obj_as(List[LogstashLogConfig], v["logs"])
+        return v
+
+    def execute(
+        self,
+        dataset_dir: Path,
+        dataset_config: DatasetConfig,
+        parser_config: LogstashParserConfig,
+        es: Elasticsearch,
+    ) -> None:
+
+        variables = self.context.load()
+        variables.update(
+            {
+                "DATASET_DIR": dataset_dir,
+                "DATASET": dataset_config,
+                "PARSER": parser_config,
+                "servers": self.servers,
+            }
+        )
+        # add elasticsearch connection variables
+        variables.update(get_transport_variables(es))
+
+        # create all logstash directories
+        create_dirs(
+            [
+                parser_config.settings_dir,
+                parser_config.conf_dir,
+                parser_config.data_dir,
+                parser_config.log_dir,
+            ]
+        )
+
+        # copy jvm and log4j config to settings dir if they don't exist
+        copy_package_file(
+            "cr_kyoushi.dataset.files",
+            "jvm.options",
+            parser_config.settings_dir.joinpath("jvm.options"),
+        )
+        copy_package_file(
+            "cr_kyoushi.dataset.files",
+            "log4j2.properties",
+            parser_config.settings_dir.joinpath("log4j2.properties"),
+        )
+
+        # write logstash configuration
+        write_template(
+            self.piplines_template,
+            parser_config.settings_dir.joinpath("logstash.yml"),
+            variables,
+            es,
+        )
+
+        # write pipelines configuration
+        write_template(
+            self.logstash_template,
+            parser_config.settings_dir.joinpath("pipelines.yml"),
+            variables,
+            es,
+        )
+
+        # write input configuration
+        write_template(
+            self.input_template,
+            parser_config.conf_dir.joinpath(self.input_config_name),
+            variables,
+            es,
+        )
+
+        # write output configuration
+        write_template(
+            self.output_template,
+            parser_config.conf_dir.joinpath(self.output_config_name),
+            variables,
+            es,
+        )
+
+
 class ProcessorPipeline:
     def __init__(self, processor_map: Dict[str, Any] = {}):
         self.processor_map: Dict[str, Any] = processor_map
@@ -257,13 +420,17 @@ class ProcessorPipeline:
                 ForEachProcessor.type_: ForEachProcessor,
                 CreateDirectoryProcessor.type_: CreateDirectoryProcessor,
                 GzipProcessor.type_: GzipProcessor,
+                LogstashSetupProcessor.type_: LogstashSetupProcessor,
             }
         )
 
     def execute(
         self,
         data: List[Dict[str, Any]],
-        es: Optional[Elasticsearch] = None,
+        dataset_dir: Path,
+        dataset_config: DatasetConfig,
+        parser_config: LogstashParserConfig,
+        es: Elasticsearch,
     ):
         # reset in case we error during execution
         self.__loaded = False
@@ -286,7 +453,13 @@ class ProcessorPipeline:
 
             if isinstance(processor, ProcessorContainer):
                 print(f"Expanding processor container - {processor.name} ...")
-                self.execute(processor.processors(), es)
+                self.execute(
+                    processor.processors(),
+                    dataset_dir,
+                    dataset_config,
+                    parser_config,
+                    es,
+                )
             else:
                 print(f"Executing - {processor.name} ...")
-                processor.execute(es=es)
+                processor.execute(dataset_dir, dataset_config, parser_config, es)

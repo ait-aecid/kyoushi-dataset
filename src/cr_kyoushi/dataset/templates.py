@@ -14,7 +14,9 @@ from typing import (
 
 from elasticsearch import Elasticsearch
 from jinja2 import (
+    ChoiceLoader,
     FileSystemLoader,
+    PackageLoader,
     StrictUndefined,
     Undefined,
     contextfunction,
@@ -40,9 +42,16 @@ def create_environment(
     ],
     es: Optional[Elasticsearch] = None,
 ) -> NativeEnvironment:
+    env_loader = ChoiceLoader(
+        [
+            FileSystemLoader(templates_dirs),
+            PackageLoader("cr_kyoushi.dataset", "templates"),
+        ]
+    )
     env = NativeEnvironment(
-        loader=FileSystemLoader(templates_dirs),
+        loader=env_loader,
         undefined=StrictUndefined,
+        extensions=["jinja2.ext.do", "jinja2.ext.loopcontrols"],
     )
     custom_tests = {
         "match_any": match_any,

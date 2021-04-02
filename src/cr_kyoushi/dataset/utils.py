@@ -1,5 +1,8 @@
+import importlib.resources as pkg_resources
 import io
 import json
+import os
+import shutil
 
 from pathlib import Path
 from typing import (
@@ -8,6 +11,7 @@ from typing import (
     Any,
     BinaryIO,
     Dict,
+    List,
     Text,
     Union,
 )
@@ -120,3 +124,15 @@ def version_info(cli_info: Info) -> str:
     return "\n".join(
         "{:>30} {}".format(k + ":", str(v).replace("\n", " ")) for k, v in info.items()
     )
+
+
+def create_dirs(directories: List[Path], always: bool = False):
+    for d in directories:
+        if always or not d.exists():
+            os.makedirs(d, exist_ok=always)
+
+
+def copy_package_file(package: str, file: str, dest: Path, overwrite: bool = False):
+    if overwrite or not dest.exists():
+        with pkg_resources.path(package, file) as pkg_file:
+            shutil.copy(pkg_file, dest.absolute())

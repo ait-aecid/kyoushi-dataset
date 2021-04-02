@@ -1,0 +1,48 @@
+input {
+{% for name, server in servers.items() %}
+# Log inputs for {{ name }}
+# -----------------------------
+{% for log in server.logs %}
+    file {
+{%- if log.type is not none %}
+        type => "{{ log.type }}"
+{%- endif %}
+        codec => "{{ log.codec }}"
+{%- if log.path is string %}
+        path => "{{ DATASET_DIR.joinpath('gather',name,'logs', log.path) }}"
+{%- else %}
+        path => [
+{%- for _path in path %}
+                "{{ DATASET_DIR.joinpath('gather',name,'logs', _path)}}",
+{%- endfor %}
+        ]
+{%- endif %}
+{%- if log.exclude | length > 0 %}
+        exclude => {{ log.exclude | tojson }}
+{%- endif %}
+        mode => "read"
+        exit_after_read => true
+        file_completed_action => "log"
+        file_completed_log_path => "{{ PARSER.completed_log }}"
+        file_sort_by => "path"
+        file_sort_direction => "{{ log.file_sort_direction }}"
+{%- if log.delimiter is not none %}
+        delimiter => "{{ log.delimiter }}"
+{%- endif %}
+        sincedb_clean_after => "8 weeks"
+{%- if log.tags | length > 0 %}
+        tags => {{ log.tags | tojson }}
+{%- endif %}
+{%- if log.add_field | length > 0 %}
+        add_field => {
+{% for _field,_value in log.add_field.items() %}
+            "{{ _field }}" => {{ _value | tojson }}
+{% endfor %}
+        }
+{%- endif %}
+    }
+{% endfor %}
+# Log inputs for {{ name }} end
+# -----------------------------
+{% endfor %}
+}

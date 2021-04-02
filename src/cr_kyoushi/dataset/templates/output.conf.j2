@@ -1,0 +1,16 @@
+output {
+  elasticsearch {
+    hosts => ["{{ ELASTICSEARCH_HOST }}"]
+    ssl => {{ ELASTICSEARCH_SSL | tojson }}
+    index => "logs-kyoushi-{{ DATASET.name }}"
+{%- if ELASTICSEARCH_HOST_PATH is defined %}
+    path => "{{ ELASTICSEARCH_HOST_PATH }}"
+{%- endif %}
+{%- if ELASTICSEARCH_USER is defined %}
+    user => "{{ ELASTICSEARCH_USER }}"
+{%- endif %}
+{%- if ELASTICSEARCH_PASSWORD is defined %}
+    password => "{{ ELASTICSEARCH_PASSWORD }}"
+{%- endif %}
+  }
+}

@@ -3,9 +3,10 @@ import shutil
 
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 import click
+
+from elasticsearch import Elasticsearch
 
 from . import LAYOUT
 from .config import (
@@ -90,34 +91,55 @@ def version(info: Info):
 @click.option(
     "--config",
     "-c",
-    type=CliPath(exists=True, dir_okay=False, resolve_path=True),
-    help="The processing configuration file (defaults to dataset/processing/process.yaml)",
+    type=CliPath(exists=True, dir_okay=False, resolve_path=True, readable=True),
+    default="./" + LAYOUT.PROCESSING_CONFIG.value,
+    help="The processing configuration file (defaults to <dataset dir>/processing/process.yaml)",
+)
+@click.option(
+    "--dataset-config",
+    "dataset_cfg_path",
+    type=CliPath(exists=True, dir_okay=False, resolve_path=True, readable=True),
+    default="./dataset.yaml",
+    help="The dataset configuration file (defaults to <dataset dir>/dataset.yaml)",
 )
 @pass_info
 @click.pass_context
-def process(ctx: click.Context, info: Info, config: Optional[Path]):
+def process(
+    ctx: click.Context,
+    info: Info,
+    config: Path,
+    dataset_cfg_path: Path,
+):
     """Process the dataset and prepare it for labeling.
 
     CONFIG: The processing configuration file.
     """
-    if config is None:
-        config = Path(info.dataset_dir.joinpath(LAYOUT.PROCESSING_CONFIG.value))
-        if not config.exists or not config.is_file or not os.access(config, os.R_OK):
-            ctx.fail(f"Invalid value for 'CONFIG': File '{config}' is not readable.")
     processing_config = ProcessingConfig.parse_obj(load_file(config))
-
-    print(processing_config.pre_processors)
+    dataset_config = DatasetConfig.parse_obj(load_file(dataset_cfg_path))
+    es = Elasticsearch([info.elasticsearch_url])
 
     pipeline_processor = ProcessorPipeline()
 
     click.echo("Running pre-processors ...")
-    pipeline_processor.execute(processing_config.pre_processors)
+    pipeline_processor.execute(
+        processing_config.pre_processors,
+        info.dataset_dir,
+        dataset_config,
+        processing_config.parser,
+        es,
+    )
 
     click.echo("Parsing log files ...")
     # exec logstash
 
     click.echo("Running post-processors ...")
-    pipeline_processor.execute(processing_config.post_processors)
+    pipeline_processor.execute(
+        processing_config.post_processors,
+        info.dataset_dir,
+        dataset_config,
+        processing_config.parser,
+        es,
+    )
 
 
 @cli.command()
