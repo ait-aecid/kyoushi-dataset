@@ -300,30 +300,55 @@ class GzipProcessor(ProcessorBase):
 
 class LogstashSetupProcessor(ProcessorBase):
     type_: ClassVar = "logstash.setup"
+
     input_config_name: str = Field(
         "input.conf",
         description="The name of the log inputs config file. (relative to the pipeline config dir)",
     )
+
     input_template: Path = Field(
         Path("input.conf.j2"),
         description="The template to use for the file input plugin configuration",
     )
+
     output_config_name: str = Field(
         "output.conf",
         description="The name of the log outputs config file. (relative to the pipeline config dir)",
     )
+
     output_template: Path = Field(
         Path("output.conf.j2"),
         description="The template to use for the file output plugin configuration",
     )
+
+    pre_process_name: str = Field(
+        "0000_pre_process.conf",
+        description=(
+            "The file name to use for the pre process filters config. "
+            "This is prefixed with 0000_ to ensure that the filters are run first."
+        ),
+    )
+
+    pre_process_template: Path = Field(
+        Path("pre_process.conf.j2"),
+        description="The template to use for the file output plugin configuration",
+    )
+
     logstash_template: Path = Field(
         Path("logstash.yml.j2"),
         description="The template to use for the logstash configuration",
     )
+
     piplines_template: Path = Field(
         Path("pipelines.yml.j2"),
         description="The template to use for the logstash pipelines configuration",
     )
+
+    index_template_template: Path = Field(
+        Path("ecs-template.json.j2"),
+        description="The template to use for the elasticsearch dataset index patterns index template",
+    )
+
     servers: Dict[str, Any] = Field(
         ...,
         description="Dictionary of servers and their log configurations",
@@ -333,6 +358,12 @@ class LogstashSetupProcessor(ProcessorBase):
     def validate_servers(cls, v):
         assert "logs" in v, "Each server must have a logs configuration"
         v["logs"] = parse_obj_as(List[LogstashLogConfig], v["logs"])
+        return v
+
+    @validator("servers", each_item=True)
+    def default_server_timezone(cls, v):
+        if "timezone" not in v:
+            v["timezone"] = "UTC"
         return v
 
     def execute(
@@ -379,7 +410,7 @@ class LogstashSetupProcessor(ProcessorBase):
 
         # write logstash configuration
         write_template(
-            self.piplines_template,
+            self.logstash_template,
             parser_config.settings_dir.joinpath("logstash.yml"),
             variables,
             es,
@@ -387,8 +418,18 @@ class LogstashSetupProcessor(ProcessorBase):
 
         # write pipelines configuration
         write_template(
-            self.logstash_template,
+            self.piplines_template,
             parser_config.settings_dir.joinpath("pipelines.yml"),
+            variables,
+            es,
+        )
+
+        # write index template
+        write_template(
+            self.index_template_template,
+            parser_config.settings_dir.joinpath(
+                f"{dataset_config.name}-index-template.json"
+            ),
             variables,
             es,
         )
@@ -405,6 +446,14 @@ class LogstashSetupProcessor(ProcessorBase):
         write_template(
             self.output_template,
             parser_config.conf_dir.joinpath(self.output_config_name),
+            variables,
+            es,
+        )
+
+        # write pre process configuration
+        write_template(
+            self.pre_process_template,
+            parser_config.conf_dir.joinpath(self.pre_process_name),
             variables,
             es,
         )

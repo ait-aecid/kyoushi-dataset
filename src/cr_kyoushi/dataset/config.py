@@ -68,6 +68,16 @@ class LogstashParserConfig(BaseModel):
         description="The directory logstash should use for persistent data (e.g., sincedb).",
     )
 
+    parsed_dir: Path = Field(
+        None,
+        description="The directory to save the parsed log files in, when save_parsed=true for any log. (defaults to <dataset>/parsed)",
+    )
+
+    save_parsed: bool = Field(
+        False,
+        description="If the log files should be saved to the disk after parsing. Is overridden by log.save_parsed.",
+    )
+
     @validator("completed_log", pre=True, always=True)
     def default_completed_log(cls, v, *, values, **kwargs):
         return v or values["log_dir"].joinpath("file-completed.log")
@@ -75,6 +85,10 @@ class LogstashParserConfig(BaseModel):
     @validator("conf_dir", pre=True, always=True)
     def default_conf_dir(cls, v, *, values, **kwargs):
         return v or values["settings_dir"].joinpath("conf.d")
+
+    @validator("parsed_dir", pre=True, always=True)
+    def default_parsed_dir(cls, v, *, values, **kwargs):
+        return v or Path("parsed")
 
 
 class ProcessingConfig(BaseModel):
@@ -101,8 +115,8 @@ class ProcessingConfig(BaseModel):
 
 
 class LogstashLogConfig(BaseModel):
-    type: Optional[str] = Field(
-        None,
+    type: str = Field(
+        ...,
         description="The type to tag the log input with.",
     )
     codec: str = Field(
@@ -112,6 +126,10 @@ class LogstashLogConfig(BaseModel):
     path: Union[str, List[str]] = Field(
         ...,
         description="The log file path/s to read.",
+    )
+    save_parsed: Optional[bool] = Field(
+        None,
+        description="If this log should be saved to the disk after parsing. (Overrides parser.save_parsed)",
     )
     exclude: Union[str, List[str]] = Field(
         [],

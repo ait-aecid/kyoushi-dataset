@@ -73,9 +73,9 @@ def cli(info: Info, dataset: Path, logstash: Path, elasticsearch: str):
     info.dataset_dir = dataset
     info.logstash_bin = logstash
     info.elasticsearch_url = elasticsearch
-
     # change to dataset directory
-    os.chdir(info.dataset_dir)
+    if info.dataset_dir.exists():
+        os.chdir(info.dataset_dir)
 
 
 @cli.command()
@@ -114,6 +114,7 @@ def process(
 
     CONFIG: The processing configuration file.
     """
+
     processing_config = ProcessingConfig.parse_obj(load_file(config))
     dataset_config = DatasetConfig.parse_obj(load_file(dataset_cfg_path))
     es = Elasticsearch([info.elasticsearch_url])
