@@ -15,9 +15,11 @@ from typing import (
 )
 
 from elasticsearch import Elasticsearch
+from elasticsearch.client import IndicesClient
 from pydantic import (
     BaseModel,
     Field,
+    FilePath,
     parse_obj_as,
     validator,
 )
@@ -28,6 +30,7 @@ from .config import (
     LogstashParserConfig,
 )
 from .elasticsearch import get_transport_variables
+from .pcap import convert_pcap_to_ecs
 from .templates import (
     render_template,
     write_template,
@@ -35,6 +38,7 @@ from .templates import (
 from .utils import (
     copy_package_file,
     create_dirs,
+    load_file,
     load_variables,
 )
 
@@ -298,6 +302,145 @@ class GzipProcessor(ProcessorBase):
             gzip_file.unlink()
 
 
+class PcapElasticsearchProcessor(ProcessorBase):
+    type_: ClassVar = "pcap.elasticsearch"
+    pcap: FilePath = Field(..., description="The pcap file to convert")
+    dest: Path = Field(..., description="The destination file")
+    tls_keylog: Optional[FilePath] = Field(
+        None, description="TLS keylog file to decrypt TLS on the fly."
+    )
+    tshark_bin: Optional[FilePath] = Field(
+        None,
+        description="Path to your tshark binary (searches in common paths if not supplied)",
+    )
+    remove_index_messages: bool = Field(
+        True,
+        description=(
+            "If the elasticsearch bulk API index messages should be stripped from the output file. "
+            "Useful when using logstash or similar instead of the bulk API."
+        ),
+    )
+    packet_summary: bool = Field(
+        True, description="If the packet summaries should be included (-P option)."
+    )
+    packet_details: bool = Field(
+        True,
+        description="If the packet details should be included, when packet_summary=False then details are always included (-V option).",
+    )
+    read_filter: Optional[str] = Field(
+        None,
+        description="The read filter to use when reading the pcap file useful to reduce the number of packets (-Y option)",
+    )
+    protocol_match_filter: Optional[str] = Field(
+        None,
+        description=(
+            "Display filter for protocols and their fields (-J option)."
+            "Parent and child nodes are included for all matches lower level protocols must be added explicitly."
+        ),
+    )
+    protocol_match_filter_parent: Optional[str] = Field(
+        None,
+        description="Display filter for protocols and their fields. Only partent nodes are included (-j option).",
+    )
+
+    create_destination_dirs: bool = Field(
+        True,
+        description="If the processor should create missing destination parent directories",
+    )
+
+    force: bool = Field(
+        False,
+        description="If the pcap should be created even when the destination file already exists.",
+    )
+
+    def execute(
+        self,
+        dataset_dir: Path,
+        dataset_config: DatasetConfig,
+        parser_config: LogstashParserConfig,
+        es: Elasticsearch,
+    ) -> None:
+        if self.create_destination_dirs:
+            # create destination parent directory if it does not exist
+            self.dest.parent.mkdir(parents=True, exist_ok=True)
+
+        if self.force or not self.dest.exists():
+            # convert the file
+            convert_pcap_to_ecs(
+                self.pcap,
+                self.dest,
+                self.tls_keylog,
+                self.tshark_bin,
+                self.remove_index_messages,
+                self.packet_summary,
+                self.packet_details,
+                self.read_filter,
+                self.protocol_match_filter,
+                self.protocol_match_filter_parent,
+            )
+
+
+class TemplateCreateProcessor(ProcessorBase):
+    type_: ClassVar = "elasticsearch.template"
+    template: FilePath = Field(
+        ..., description="The index template to add to elasticsearch"
+    )
+    template_name: str = Field(
+        ..., description="The name to use for the index template"
+    )
+    index_patterns: Optional[List[str]] = Field(
+        None,
+        description=(
+            "The index patterns the template should be applied to. "
+            "If this is not set then the index template file must contain this information already!"
+        ),
+    )
+    patterns_prefix_dataset: bool = Field(
+        True,
+        description=(
+            "If set to true the `<DATASET.name>-` is automatically prefixed to each pattern. "
+            "This is a convenience setting as per default all dataset indices start with this prefix."
+        ),
+    )
+    order: int = Field(
+        100,
+        description="The order to assign to this index template (higher values take precedent).",
+    )
+
+    create_only: bool = Field(
+        False,
+        description="If true then an existing template with the given name will not be replaced.",
+    )
+
+    def execute(
+        self,
+        dataset_dir: Path,
+        dataset_config: DatasetConfig,
+        parser_config: LogstashParserConfig,
+        es: Elasticsearch,
+    ) -> None:
+        template_data = load_file(self.template)
+
+        # configure the index patterns
+        if self.index_patterns is not None:
+            template_data["index_patterns"] = (
+                # if prefix is on add the prefix to all patterns
+                [f"{dataset_config.name}-{p}" for p in self.index_patterns]
+                if self.patterns_prefix_dataset
+                # else add list as is
+                else self.index_patterns
+            )
+
+        ies = IndicesClient(es)
+
+        ies.put_template(
+            name=self.template_name,
+            body=template_data,
+            create=self.create_only,
+            order=self.order,
+        )
+
+
 class LogstashSetupProcessor(ProcessorBase):
     type_: ClassVar = "logstash.setup"
 
@@ -470,6 +613,8 @@ class ProcessorPipeline:
                 CreateDirectoryProcessor.type_: CreateDirectoryProcessor,
                 GzipProcessor.type_: GzipProcessor,
                 LogstashSetupProcessor.type_: LogstashSetupProcessor,
+                PcapElasticsearchProcessor.type_: PcapElasticsearchProcessor,
+                TemplateCreateProcessor.type_: TemplateCreateProcessor,
             }
         )
 
