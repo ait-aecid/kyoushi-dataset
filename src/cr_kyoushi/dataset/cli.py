@@ -13,6 +13,7 @@ from .config import (
     DatasetConfig,
     ProcessingConfig,
 )
+from .parser import LogstashParser
 from .processors import ProcessorPipeline
 from .utils import (
     load_file,
@@ -102,6 +103,24 @@ def version(info: Info):
     default="./dataset.yaml",
     help="The dataset configuration file (defaults to <dataset dir>/dataset.yaml)",
 )
+@click.option(
+    "--skip-pre",
+    "skip_pre",
+    is_flag=True,
+    help="Skip the pre processing phase",
+)
+@click.option(
+    "--skip-parse",
+    "skip_parse",
+    is_flag=True,
+    help="Skip the parsing phase",
+)
+@click.option(
+    "--skip-post",
+    "skip_post",
+    is_flag=True,
+    help="Skip the post processing phase",
+)
 @pass_info
 @click.pass_context
 def process(
@@ -109,6 +128,9 @@ def process(
     info: Info,
     config: Path,
     dataset_cfg_path: Path,
+    skip_pre: bool,
+    skip_parse: bool,
+    skip_post: bool,
 ):
     """Process the dataset and prepare it for labeling.
 
@@ -120,27 +142,38 @@ def process(
     es = Elasticsearch([info.elasticsearch_url])
 
     pipeline_processor = ProcessorPipeline()
+    parser = LogstashParser(dataset_config, processing_config.parser, info.logstash_bin)
 
-    click.echo("Running pre-processors ...")
-    pipeline_processor.execute(
-        processing_config.pre_processors,
-        info.dataset_dir,
-        dataset_config,
-        processing_config.parser,
-        es,
-    )
+    if not skip_pre:
+        click.echo("Running pre-processors ...")
+        pipeline_processor.execute(
+            processing_config.pre_processors,
+            info.dataset_dir,
+            dataset_config,
+            processing_config.parser,
+            es,
+        )
+    else:
+        click.echo("Skipping pre-processors ...")
 
-    click.echo("Parsing log files ...")
-    # exec logstash
+    if not skip_parse:
+        click.echo("Parsing log files ...")
+        # exec logstash
+        parser.parse()
+    else:
+        click.echo("Skipping parseing ...")
 
-    click.echo("Running post-processors ...")
-    pipeline_processor.execute(
-        processing_config.post_processors,
-        info.dataset_dir,
-        dataset_config,
-        processing_config.parser,
-        es,
-    )
+    if not skip_post:
+        click.echo("Running post-processors ...")
+        pipeline_processor.execute(
+            processing_config.post_processors,
+            info.dataset_dir,
+            dataset_config,
+            processing_config.parser,
+            es,
+        )
+    else:
+        click.echo("Skip post-processors ...")
 
 
 @cli.command()

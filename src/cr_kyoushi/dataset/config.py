@@ -53,6 +53,10 @@ class LogstashParserConfig(BaseModel):
         description="The path to the logstash pipeline config (defaults to <settings_dir>/conf.d)",
     )
 
+    log_level: Optional[str] = Field(
+        None, description="The log level to pass to the logstash cli"
+    )
+
     log_dir: Path = Field(
         Path("processing/logstash/log"),
         description="The directory logstash should use for logging",
@@ -139,6 +143,14 @@ class LogstashLogConfig(BaseModel):
         "desc",
         description="The sort direction for multiple files.",
     )
+    file_chunk_size: Optional[int] = Field(
+        None,
+        description=(
+            "The size of the chunks to read from the file (in bytes). "
+            "Default is 32kb set this to a higher value if your log file contains very long lines."
+        ),
+    )
+
     delimiter: Optional[str] = Field(
         None,
         description="The newline delimiter (does not work for compressed files).",

@@ -26,6 +26,9 @@ input {
         file_completed_log_path => "{{ PARSER.completed_log }}"
         file_sort_by => "path"
         file_sort_direction => "{{ log.file_sort_direction }}"
+{%- if log.file_chunk_size is not none %}
+        file_chunk_size => {{ log.file_chunk_size }}
+{%- endif %}
 {%- if log.delimiter is not none %}
         delimiter => "{{ log.delimiter }}"
 {%- endif %}
@@ -38,7 +41,7 @@ input {
             "[@metadata][kyoushi][host][name]" => "{{ name }}"
             "[@metadata][kyoushi][host][hostname]" => "{{ server['hostname'] | default(name) }}"
             "[@metadata][kyoushi][host][ip]" => "{{ server['default_ipv4_address'] | default(server['default_ipv6_address']) }}"
-            "[event][timezone]" => "{{ server.timezone }}"
+            "[@metadata][event][timezone]" => "{{ server.timezone }}"
 {%- for _field,_value in log.add_field.items() %}
             "{{ _field }}" => {{ _value | tojson }}
 {%- endfor %}

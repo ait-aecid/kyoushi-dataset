@@ -49,4 +49,9 @@ filter {
             '
         }
     }
+
+    ruby {
+        init => '@@fallback_timestamp = Hash.new(LogStash::Timestamp.at({{ DATASET.start.timestamp() }}))'
+        code => ''
+    }
 }

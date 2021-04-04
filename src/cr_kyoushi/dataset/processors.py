@@ -15,7 +15,7 @@ from typing import (
 )
 
 from elasticsearch import Elasticsearch
-from elasticsearch.client import IndicesClient
+from elasticsearch.client.indices import IndicesClient
 from pydantic import (
     BaseModel,
     Field,
