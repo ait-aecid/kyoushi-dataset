@@ -3,6 +3,7 @@ import gzip
 import shutil
 import sys
 
+from datetime import datetime
 from pathlib import Path
 from typing import (
     Any,
@@ -16,6 +17,10 @@ from typing import (
 
 from elasticsearch import Elasticsearch
 from elasticsearch.client.indices import IndicesClient
+from elasticsearch.client.ingest import IngestClient
+from elasticsearch_dsl.query import Range
+from elasticsearch_dsl.search import Search
+from elasticsearch_dsl.update_by_query import UpdateByQuery
 from pydantic import (
     BaseModel,
     Field,
@@ -29,7 +34,10 @@ from .config import (
     LogstashLogConfig,
     LogstashParserConfig,
 )
-from .elasticsearch import get_transport_variables
+from .elasticsearch import (
+    get_transport_variables,
+    scan_composite,
+)
 from .pcap import convert_pcap_to_ecs
 from .templates import (
     render_template,
@@ -40,6 +48,7 @@ from .utils import (
     create_dirs,
     load_file,
     load_variables,
+    trim_file,
 )
 
 
@@ -441,6 +450,29 @@ class TemplateCreateProcessor(ProcessorBase):
         )
 
 
+class IngestCreateProcessor(ProcessorBase):
+    type_: ClassVar = "elasticsearch.ingest"
+    ingest_pipeline: FilePath = Field(
+        ..., description="The ingest pipeline to add to elasticsearch"
+    )
+    ingest_pipeline_id: str = Field(
+        ..., description="The id to use for the ingest pipeline"
+    )
+
+    def execute(
+        self,
+        dataset_dir: Path,
+        dataset_config: DatasetConfig,
+        parser_config: LogstashParserConfig,
+        es: Elasticsearch,
+    ) -> None:
+        pipeline_data = load_file(self.ingest_pipeline)
+
+        ies = IngestClient(es)
+
+        ies.put_pipeline(id=self.ingest_pipeline_id, body=pipeline_data)
+
+
 class LogstashSetupProcessor(ProcessorBase):
     type_: ClassVar = "logstash.setup"
 
@@ -602,6 +634,123 @@ class LogstashSetupProcessor(ProcessorBase):
         )
 
 
+class TrimProcessor(ProcessorBase):
+    type_: ClassVar = "dataset.trim"
+    start: Optional[datetime] = Field(
+        None,
+        description="The start time to trim the logs to (defaults to dataset start)",
+    )
+    end: Optional[datetime] = Field(
+        None,
+        description="The end time to trim the logs to (defaults to dataset end)",
+    )
+    indices: Optional[List[str]] = Field(
+        None, description="The log indices to trim (defaults to `<dataset>-*`)"
+    )
+
+    exclude: List[str] = Field(
+        [],
+        description=(
+            "Indices to exclude from triming. "
+            "This will overwrite/exclude indices from any patterns supplied in `indices`"
+        ),
+    )
+
+    patterns_prefix_dataset: bool = Field(
+        True,
+        description=(
+            "If set to true the `<DATASET.name>-` is automatically prefixed to each pattern. "
+            "This is a convenience setting as per default all dataset indices start with this prefix."
+        ),
+    )
+
+    def execute(
+        self,
+        dataset_dir: Path,
+        dataset_config: DatasetConfig,
+        parser_config: LogstashParserConfig,
+        es: Elasticsearch,
+    ) -> None:
+        if self.indices is None:
+            # if not explicitly set use dataset root indices pattern
+            indices = [f"{dataset_config.name}-*"]
+        else:
+            indices = (
+                # if given and prefix flag is True add dataset name prefix
+                [f"{dataset_config.name}-{ind}" for ind in self.indices]
+                if self.patterns_prefix_dataset
+                else
+                # otherwise use as is
+                indices
+            )
+
+        exclude = (
+            # add negative match indicator '-' and dataset name prefix
+            [f"-{dataset_config.name}-{exc}" for exc in self.exclude]
+            if self.patterns_prefix_dataset
+            # add negative match indicator only
+            else [f"-{exc}" for exc in self.exclude]
+        )
+        start = self.start or dataset_config.start
+        end = self.end or dataset_config.end
+        # exclude must be after indices for negative patterns to work as expected
+        index = indices + exclude
+        remove = Search(using=es, index=index)
+        # setup trim range filter
+        # start >= @timestamp < end
+        valid_range = Range(**{"@timestamp": {"gte": start, "lt": end}})
+
+        # remove all elements outside of range i.e., `not` valid_range
+        remove = remove.filter(~valid_range)
+        # refresh="true" is important to ensure consecutive queries
+        # use up to date information
+        print(remove.params(refresh="true", request_cache=False).delete().to_dict())
+
+        search_lines = Search(using=es, index=index)
+
+        # setup aggregations
+        search_lines.aggs.bucket(
+            "files",
+            "composite",
+            sources=[{"path": {"terms": {"field": "log.file.path"}}}],
+        )
+        search_lines.aggs["files"].metric("min_line", "min", field="log.file.line")
+        search_lines.aggs["files"].metric("max_line", "max", field="log.file.line")
+        # use custom scan function to ensure we get all the buckets
+        lines_result = scan_composite(search_lines, "files")
+
+        # trim each file
+        for bucket in lines_result:
+            first_line = int(bucket.min_line.value)
+            last_line = int(bucket.max_line.value)
+            trim_file(bucket.key.path, first_line, last_line)
+
+        # update entries in elastic search
+        update_lines = UpdateByQuery(using=es, index=index)
+        # adjust map for shifting line numbers in the db to start at our new min line
+        adjust_map = {
+            bucket.key.path: int(bucket.min_line.value - 1)
+            for bucket in lines_result
+            # only include paths that need actual changing
+            if int(bucket.min_line.value - 1) > 0
+        }
+
+        # we only have entries to update if the adjust map is non empty
+        if len(adjust_map) > 0:
+            # pre filter our update query to only include file paths we
+            # want to update
+            update_lines = update_lines.filter(
+                "terms",
+                log__file__path=list(adjust_map.keys()),
+            )
+            update_lines.script(
+                lang="painless",
+                # subtract matching the entries log file path
+                source="ctx._source.log.file.line -= params[ctx._source.log.file.path]",
+                params=adjust_map,
+            ).execute()
+
+
 class ProcessorPipeline:
     def __init__(self, processor_map: Dict[str, Any] = {}):
         self.processor_map: Dict[str, Any] = processor_map
@@ -615,6 +764,8 @@ class ProcessorPipeline:
                 LogstashSetupProcessor.type_: LogstashSetupProcessor,
                 PcapElasticsearchProcessor.type_: PcapElasticsearchProcessor,
                 TemplateCreateProcessor.type_: TemplateCreateProcessor,
+                IngestCreateProcessor.type_: IngestCreateProcessor,
+                TrimProcessor.type_: TrimProcessor,
             }
         )
 

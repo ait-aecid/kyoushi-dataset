@@ -5,6 +5,7 @@ import os
 import shutil
 
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 from typing import (
     IO,
     TYPE_CHECKING,
@@ -12,6 +13,7 @@ from typing import (
     BinaryIO,
     Dict,
     List,
+    Optional,
     Text,
     Union,
 )
@@ -136,3 +138,64 @@ def copy_package_file(package: str, file: str, dest: Path, overwrite: bool = Fal
     if overwrite or not dest.exists():
         with pkg_resources.path(package, file) as pkg_file:
             shutil.copy(pkg_file, dest.absolute())
+
+
+def remove_first_lines(path: Union[Text, Path], n: int, inclusive=False):
+    """Removes the first lines up until `n`
+
+    In inclusive mode the nth line is also deleted otherwise
+    only the lines before the nth line are delted.
+
+    Args:
+        path: The path to the file
+        n: The "nth" line
+        inclusive: If the nth line should be deleted as well or not
+    """
+    if not inclusive:
+        n -= 1
+
+    if n <= 0:
+        # nothing to do here
+        return
+
+    with open(path, "rb") as original, NamedTemporaryFile("wb", delete=False) as temp:
+        # skip the first n iterations
+        for i in range(n):
+            next(original)
+        # now start the iterator at our new first line
+        for line in original:
+            temp.write(line)
+        temp_path = Path(temp.name)
+    # replace old file with new file
+    temp_path.replace(path)
+
+
+def truncate_file(path: Union[Text, Path], last_line: int):
+    """Truncates file to be only `last_line` long.
+
+    Args:
+        path: The file to truncate
+        last_line: The new last line
+    """
+    with open(path, "rb+") as f:
+        # read up to the last line
+        for i in range(last_line):
+            f.readline()
+        # and then truncate the file to the current pointer
+        f.truncate()
+
+
+def trim_file(
+    path: Union[Text, Path],
+    start_line: Optional[int],
+    last_line: Optional[int],
+):
+    print(f"Trimming file: {path} to be {start_line} - {last_line}")
+    # first truncate the file
+    # so we don't have to adjust for new max line count
+    if last_line is not None:
+        truncate_file(path, last_line)
+
+    # remove all lines before the start line
+    if start_line is not None:
+        remove_first_lines(path, start_line, inclusive=False)

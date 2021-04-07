@@ -1,9 +1,12 @@
 from typing import (
     Any,
     Dict,
+    List,
 )
 
 from elasticsearch import Elasticsearch
+from elasticsearch_dsl import Search
+from elasticsearch_dsl.response.aggs import Bucket
 
 
 def get_transport_variables(es: Elasticsearch) -> Dict[str, Any]:
@@ -28,3 +31,19 @@ def get_transport_variables(es: Elasticsearch) -> Dict[str, Any]:
 
         return host_variables
     raise TypeError("Uninitialized elasticsearch client!")
+
+
+def scan_composite(search: Search, name: str) -> List[Bucket]:
+    # ensure that we do not get documents for no reason
+    search = search.extra(size=0)
+    buckets = []
+    while True:
+        # need to disable cache or the API will keep returning the same result
+        result = search.execute(ignore_cache=True)
+        buckets.extend(result.aggregations[name].buckets)
+        if "after_key" not in result.aggregations[name]:
+            # no after key indicates we got everything
+            return buckets
+        else:
+            # resume query after the key
+            search.aggs[name].after = result.aggregations[name].after_key
