@@ -51,7 +51,12 @@ filter {
     }
 
     ruby {
-        init => '@@fallback_timestamp = Hash.new(LogStash::Timestamp.at({{ DATASET.start.timestamp() }}))'
+        # create a few globals
+        init => '
+            @@fallback_timestamp = Hash.new(LogStash::Timestamp.at({{ DATASET.start.timestamp() }}))
+            @@observe_start = LogStash::Timestamp.at({{ DATASET.start.timestamp() }})
+            @@observe_end = LogStash::Timestamp.at({{ DATASET.end.timestamp() }})
+        '
         code => ''
     }
 }
