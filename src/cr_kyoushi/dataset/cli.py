@@ -2,17 +2,29 @@ import os
 import shutil
 
 from datetime import datetime
+from json.decoder import JSONDecodeError
 from pathlib import Path
+from typing import (
+    Any,
+    Dict,
+    List,
+)
 
 import click
 
 from elasticsearch import Elasticsearch
+from pydantic import (
+    ValidationError,
+    parse_obj_as,
+)
+from ruamel.yaml.parser import ParserError as YamlParserError
 
 from . import LAYOUT
 from .config import (
     DatasetConfig,
     ProcessingConfig,
 )
+from .labels import Labeler
 from .parser import LogstashParser
 from .processors import ProcessorPipeline
 from .utils import (
@@ -86,94 +98,6 @@ def version(info: Info):
     from .utils import version_info
 
     click.echo(version_info(cli_info=info))
-
-
-@cli.command()
-@click.option(
-    "--config",
-    "-c",
-    type=CliPath(exists=True, dir_okay=False, resolve_path=True, readable=True),
-    default="./" + LAYOUT.PROCESSING_CONFIG.value,
-    help="The processing configuration file (defaults to <dataset dir>/processing/process.yaml)",
-)
-@click.option(
-    "--dataset-config",
-    "dataset_cfg_path",
-    type=CliPath(exists=True, dir_okay=False, resolve_path=True, readable=True),
-    default="./dataset.yaml",
-    help="The dataset configuration file (defaults to <dataset dir>/dataset.yaml)",
-)
-@click.option(
-    "--skip-pre",
-    "skip_pre",
-    is_flag=True,
-    help="Skip the pre processing phase",
-)
-@click.option(
-    "--skip-parse",
-    "skip_parse",
-    is_flag=True,
-    help="Skip the parsing phase",
-)
-@click.option(
-    "--skip-post",
-    "skip_post",
-    is_flag=True,
-    help="Skip the post processing phase",
-)
-@pass_info
-@click.pass_context
-def process(
-    ctx: click.Context,
-    info: Info,
-    config: Path,
-    dataset_cfg_path: Path,
-    skip_pre: bool,
-    skip_parse: bool,
-    skip_post: bool,
-):
-    """Process the dataset and prepare it for labeling.
-
-    CONFIG: The processing configuration file.
-    """
-
-    processing_config = ProcessingConfig.parse_obj(load_file(config))
-    dataset_config = DatasetConfig.parse_obj(load_file(dataset_cfg_path))
-    es = Elasticsearch([info.elasticsearch_url])
-
-    pipeline_processor = ProcessorPipeline()
-    parser = LogstashParser(dataset_config, processing_config.parser, info.logstash_bin)
-
-    if not skip_pre:
-        click.echo("Running pre-processors ...")
-        pipeline_processor.execute(
-            processing_config.pre_processors,
-            info.dataset_dir,
-            dataset_config,
-            processing_config.parser,
-            es,
-        )
-    else:
-        click.echo("Skipping pre-processors ...")
-
-    if not skip_parse:
-        click.echo("Parsing log files ...")
-        # exec logstash
-        parser.parse()
-    else:
-        click.echo("Skipping parseing ...")
-
-    if not skip_post:
-        click.echo("Running post-processors ...")
-        pipeline_processor.execute(
-            processing_config.post_processors,
-            info.dataset_dir,
-            dataset_config,
-            processing_config.parser,
-            es,
-        )
-    else:
-        click.echo("Skip post-processors ...")
 
 
 @cli.command()
@@ -271,3 +195,172 @@ def prepare(
     click.echo("Copying the processing configuration into the dataset ...")
     shutil.copytree(process_dir, process_dest)
     click.echo(f"Dataset initialized in: {info.dataset_dir}")
+
+
+@cli.command()
+@click.option(
+    "--config",
+    "-c",
+    type=CliPath(exists=True, dir_okay=False, resolve_path=True, readable=True),
+    default="./" + LAYOUT.PROCESSING_CONFIG.value,
+    help="The processing configuration file (defaults to <dataset dir>/processing/process.yaml)",
+)
+@click.option(
+    "--dataset-config",
+    "dataset_cfg_path",
+    type=CliPath(exists=True, dir_okay=False, resolve_path=True, readable=True),
+    default="./dataset.yaml",
+    help="The dataset configuration file (defaults to <dataset dir>/dataset.yaml)",
+)
+@click.option(
+    "--skip-pre",
+    "skip_pre",
+    is_flag=True,
+    help="Skip the pre processing phase",
+)
+@click.option(
+    "--skip-parse",
+    "skip_parse",
+    is_flag=True,
+    help="Skip the parsing phase",
+)
+@click.option(
+    "--skip-post",
+    "skip_post",
+    is_flag=True,
+    help="Skip the post processing phase",
+)
+@pass_info
+@click.pass_context
+def process(
+    ctx: click.Context,
+    info: Info,
+    config: Path,
+    dataset_cfg_path: Path,
+    skip_pre: bool,
+    skip_parse: bool,
+    skip_post: bool,
+):
+    """Process the dataset and prepare it for labeling."""
+
+    processing_config = ProcessingConfig.parse_obj(load_file(config))
+    dataset_config = DatasetConfig.parse_obj(load_file(dataset_cfg_path))
+    es = Elasticsearch([info.elasticsearch_url], timeout=180)
+
+    pipeline_processor = ProcessorPipeline()
+    parser = LogstashParser(dataset_config, processing_config.parser, info.logstash_bin)
+
+    if not skip_pre:
+        click.echo("Running pre-processors ...")
+        pipeline_processor.execute(
+            processing_config.pre_processors,
+            info.dataset_dir,
+            dataset_config,
+            processing_config.parser,
+            es,
+        )
+    else:
+        click.echo("Skipping pre-processors ...")
+
+    if not skip_parse:
+        click.echo("Parsing log files ...")
+        # exec logstash
+        parser.parse()
+    else:
+        click.echo("Skipping parseing ...")
+
+    if not skip_post:
+        click.echo("Running post-processors ...")
+        pipeline_processor.execute(
+            processing_config.post_processors,
+            info.dataset_dir,
+            dataset_config,
+            processing_config.parser,
+            es,
+        )
+    else:
+        click.echo("Skip post-processors ...")
+
+
+@cli.command()
+@click.option(
+    "--dataset-config",
+    "dataset_cfg_path",
+    type=CliPath(exists=True, dir_okay=False, resolve_path=True, readable=True),
+    default="./dataset.yaml",
+    help="The dataset configuration file (defaults to <dataset dir>/dataset.yaml)",
+)
+@click.option(
+    "--label-object",
+    "label_object",
+    default="kyoushi_labels",
+    help="The field to store the labels in",
+)
+@click.argument(
+    "rule_dirs",
+    type=str,
+    nargs=-1,
+)
+@pass_info
+@click.pass_context
+def label(
+    ctx: click.Context,
+    info: Info,
+    dataset_cfg_path: Path,
+    label_object: str,
+    rule_dirs: List[str],
+):
+    """Apply the labeling rules to the dataset
+
+    RULE_DIRS The directories from which to load the label rules (defaults to <dataset dir>/rules).
+              Relative paths start at the dataset dir.
+
+    Rules are automatically loaded from all *.json, *.yaml, *.yml files in the given rule dirs.
+
+    """
+    if len(rule_dirs) <= 0:
+        rule_dirs = ["./rules"]
+
+    dataset_config = DatasetConfig.parse_obj(load_file(dataset_cfg_path))
+    es = Elasticsearch([info.elasticsearch_url], timeout=180)
+
+    rules: List[Dict[str, Any]] = []
+
+    # iterate through rule dirs and get flattended list of rules
+    for d in rule_dirs:
+        d_path = Path(d).absolute()
+        if d_path.exists():
+            rule_files = _get_rule_files(d_path)
+            # load rule files
+            for rule_file in rule_files:
+                try:
+                    data = load_file(rule_file)
+                    data = parse_obj_as(List[Dict[str, Any]], data)
+                    rules.extend(data)
+                except (
+                    YamlParserError,
+                    ValidationError,
+                    JSONDecodeError,
+                    PermissionError,
+                ) as e:
+                    raise click.UsageError(f"Reading rule file {rule_file}:\n\n{e}")
+        else:
+            raise click.UsageError(f"Given rule directory '{d_path}' does not exist")
+
+    labeler = Labeler(
+        update_script_id=f"{dataset_config.name}_kyoushi_label_update",
+        label_object=label_object,
+    )
+
+    try:
+        labeler.execute(rules, info.dataset_dir, dataset_config, es)
+    except ValidationError as e:
+        raise click.UsageError(f"Error while parsing the rules: {e}")
+
+
+def _get_rule_files(directory: Path) -> List[Path]:
+    types = ["*.json", "*.yaml", "*.yml"]
+    files: List[Path] = []
+    for t in types:
+        files.extend(directory.glob(t))
+    return sorted(files)

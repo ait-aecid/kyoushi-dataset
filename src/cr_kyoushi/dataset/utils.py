@@ -14,6 +14,7 @@ from typing import (
     Dict,
     List,
     Optional,
+    Sequence,
     Text,
     Union,
 )
@@ -190,7 +191,8 @@ def trim_file(
     start_line: Optional[int],
     last_line: Optional[int],
 ):
-    print(f"Trimming file: {path} to be {start_line} - {last_line}")
+    if last_line is not None and start_line is not None and start_line > 1:
+        print(f"Trimming file: {path} to be {start_line} - {last_line}")
     # first truncate the file
     # so we don't have to adjust for new max line count
     if last_line is not None:
@@ -199,3 +201,22 @@ def trim_file(
     # remove all lines before the start line
     if start_line is not None:
         remove_first_lines(path, start_line, inclusive=False)
+
+
+def resolve_indices(
+    dataset_name: Optional[str] = None,
+    prefix_dataset_name: bool = True,
+    index: Optional[Union[Sequence[str], str]] = None,
+) -> Optional[Union[Sequence[str], str]]:
+    if not prefix_dataset_name or dataset_name is None:
+        # if prefix is disabled or we do not have a dataset name
+        # use index as is
+        return index
+    elif index is None:
+        # no index then simply query whole dataset
+        return f"{dataset_name}-*"
+    elif isinstance(index, Text):
+        # prefix single index
+        return f"{dataset_name}-{index}"
+    # prefix index list
+    return [f"{dataset_name}-{i}" for i in index]

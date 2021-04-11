@@ -19,6 +19,7 @@ from elasticsearch import Elasticsearch
 from elasticsearch.client.indices import IndicesClient
 from elasticsearch.client.ingest import IngestClient
 from elasticsearch_dsl.query import Range
+from elasticsearch_dsl.response.aggs import Bucket
 from elasticsearch_dsl.search import Search
 from elasticsearch_dsl.update_by_query import UpdateByQuery
 from pydantic import (
@@ -262,7 +263,7 @@ class TemplateProcessor(ProcessorBase):
         variables["DATASET"] = dataset_config
         variables["PARSER"] = parser_config
 
-        write_template(self.src, self.dest.absolute(), variables, es)
+        write_template(self.src, self.dest.absolute(), variables, es, dataset_config)
 
 
 class CreateDirectoryProcessor(ProcessorBase):
@@ -329,6 +330,11 @@ class PcapElasticsearchProcessor(ProcessorBase):
             "Useful when using logstash or similar instead of the bulk API."
         ),
     )
+
+    remove_filtered: bool = Field(
+        True, description="Remove filtered fields from the event dicts."
+    )
+
     packet_summary: bool = Field(
         True, description="If the packet summaries should be included (-P option)."
     )
@@ -381,6 +387,7 @@ class PcapElasticsearchProcessor(ProcessorBase):
                 self.tls_keylog,
                 self.tshark_bin,
                 self.remove_index_messages,
+                self.remove_filtered,
                 self.packet_summary,
                 self.packet_details,
                 self.read_filter,
@@ -404,7 +411,7 @@ class TemplateCreateProcessor(ProcessorBase):
             "If this is not set then the index template file must contain this information already!"
         ),
     )
-    patterns_prefix_dataset: bool = Field(
+    indices_prefix_dataset: bool = Field(
         True,
         description=(
             "If set to true the `<DATASET.name>-` is automatically prefixed to each pattern. "
@@ -435,7 +442,7 @@ class TemplateCreateProcessor(ProcessorBase):
             template_data["index_patterns"] = (
                 # if prefix is on add the prefix to all patterns
                 [f"{dataset_config.name}-{p}" for p in self.index_patterns]
-                if self.patterns_prefix_dataset
+                if self.indices_prefix_dataset
                 # else add list as is
                 else self.index_patterns
             )
@@ -656,13 +663,42 @@ class TrimProcessor(ProcessorBase):
         ),
     )
 
-    patterns_prefix_dataset: bool = Field(
+    indices_prefix_dataset: bool = Field(
         True,
         description=(
             "If set to true the `<DATASET.name>-` is automatically prefixed to each pattern. "
             "This is a convenience setting as per default all dataset indices start with this prefix."
         ),
     )
+
+    def get_doc_stats(self, es: Elasticsearch, index: List[str]) -> List[Bucket]:
+        # disable request cache to ensure we always get latest info
+        search_lines = Search(using=es, index=index).params(request_cache=False)
+
+        # setup aggregations
+        search_lines.aggs.bucket(
+            "files",
+            "composite",
+            sources=[{"path": {"terms": {"field": "log.file.path"}}}],
+        )
+
+        # use custom scan function to ensure we get all the buckets
+        return scan_composite(search_lines, "files")
+
+    def get_line_stats(self, es: Elasticsearch, index: List[str]) -> List[Bucket]:
+        # disable request cache to ensure we always get latest info
+        search_lines = Search(using=es, index=index).params(request_cache=False)
+
+        # setup aggregations
+        search_lines.aggs.bucket(
+            "files",
+            "composite",
+            sources=[{"path": {"terms": {"field": "log.file.path"}}}],
+        )
+        search_lines.aggs["files"].metric("min_line", "min", field="log.file.line")
+        search_lines.aggs["files"].metric("max_line", "max", field="log.file.line")
+        # use custom scan function to ensure we get all the buckets
+        return scan_composite(search_lines, "files")
 
     def execute(
         self,
@@ -678,7 +714,7 @@ class TrimProcessor(ProcessorBase):
             indices = (
                 # if given and prefix flag is True add dataset name prefix
                 [f"{dataset_config.name}-{ind}" for ind in self.indices]
-                if self.patterns_prefix_dataset
+                if self.indices_prefix_dataset
                 else
                 # otherwise use as is
                 indices
@@ -687,7 +723,7 @@ class TrimProcessor(ProcessorBase):
         exclude = (
             # add negative match indicator '-' and dataset name prefix
             [f"-{dataset_config.name}-{exc}" for exc in self.exclude]
-            if self.patterns_prefix_dataset
+            if self.indices_prefix_dataset
             # add negative match indicator only
             else [f"-{exc}" for exc in self.exclude]
         )
@@ -695,6 +731,13 @@ class TrimProcessor(ProcessorBase):
         end = self.end or dataset_config.end
         # exclude must be after indices for negative patterns to work as expected
         index = indices + exclude
+
+        # get documents before trim
+        docs_before = {
+            bucket.key.path: bucket.doc_count
+            for bucket in self.get_line_stats(es, index)
+        }
+
         remove = Search(using=es, index=index)
         # setup trim range filter
         # start >= @timestamp < end
@@ -706,31 +749,34 @@ class TrimProcessor(ProcessorBase):
         # use up to date information
         print(remove.params(refresh="true", request_cache=False).delete().to_dict())
 
-        search_lines = Search(using=es, index=index)
-
-        # setup aggregations
-        search_lines.aggs.bucket(
-            "files",
-            "composite",
-            sources=[{"path": {"terms": {"field": "log.file.path"}}}],
-        )
-        search_lines.aggs["files"].metric("min_line", "min", field="log.file.line")
-        search_lines.aggs["files"].metric("max_line", "max", field="log.file.line")
-        # use custom scan function to ensure we get all the buckets
-        lines_result = scan_composite(search_lines, "files")
+        # lines after trim
+        lines_after = self.get_line_stats(es, index)
 
         # trim each file
-        for bucket in lines_result:
+        for bucket in lines_after:
             first_line = int(bucket.min_line.value)
-            last_line = int(bucket.max_line.value)
+            last_line: Optional[int] = int(bucket.max_line.value)
+            if docs_before[bucket.key.path] - (first_line - 1) == last_line:
+                # if our last line is already correct we set it to None and skip truncate
+                # since truncating requires us to read up to the truncate point
+                last_line = None
+
             trim_file(bucket.key.path, first_line, last_line)
+            # delete entry for this file so we later can detect if a file must be deleted completely
+            del docs_before[bucket.key.path]
+
+        # any file that still has a docs before entry
+        # does not have any logs within the trim range and thus should be deleted
+        for path in docs_before.keys():
+            # delete the file
+            Path(path).unlink()
 
         # update entries in elastic search
         update_lines = UpdateByQuery(using=es, index=index)
         # adjust map for shifting line numbers in the db to start at our new min line
         adjust_map = {
             bucket.key.path: int(bucket.min_line.value - 1)
-            for bucket in lines_result
+            for bucket in lines_after
             # only include paths that need actual changing
             if int(bucket.min_line.value - 1) > 0
         }
@@ -743,6 +789,9 @@ class TrimProcessor(ProcessorBase):
                 "terms",
                 log__file__path=list(adjust_map.keys()),
             )
+
+            # ToDO might be better as async query due to threat of timeouts
+            # (i.e., update_lines.to_dict() and then use low level async API)
             update_lines.script(
                 lang="painless",
                 # subtract matching the entries log file path
