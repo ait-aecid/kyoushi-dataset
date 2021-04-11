@@ -4,12 +4,53 @@ import subprocess
 
 from distutils.version import LooseVersion
 from pathlib import Path
-from typing import Optional
+from typing import (
+    Any,
+    Optional,
+)
+
+import ujson
 
 from pyshark.tshark.tshark import (
     get_process_path,
     get_tshark_version,
 )
+
+
+def __pcap_ecs_remove_filtered(el: Any, canary: object) -> Any:
+    if isinstance(el, dict):
+        # if its an empty dict return as is
+        if len(el) == 0:
+            return el
+        # a filtered entry is a single element dict with the key filtered
+        elif len(el) == 1 and "filtered" in el:
+            return canary
+
+        # normal dicts must be checked recursively
+        for key in list(el.keys()):
+            val = __pcap_ecs_remove_filtered(el[key], canary)
+            # delete from dict if filtered otherwise update key
+            # otherwise update value in case something got replaced down the recursion tree
+            if val == canary:
+                del el[key]
+            else:
+                el[key] = val
+        return el if len(el) > 0 else canary
+    elif isinstance(el, list):
+        if len(el) == 0:
+            return el
+        return [
+            sub_el
+            for sub_el in el
+            if __pcap_ecs_remove_filtered(sub_el, canary) != canary
+        ]
+    return el
+
+
+def pcap_ecs_remove_filtered(line: str) -> str:
+    data = ujson.loads(line)
+    # we need to re-add the line break that gets lost due to json load
+    return ujson.dumps(__pcap_ecs_remove_filtered(data, object())) + "\n"
 
 
 def convert_pcap_to_ecs(
@@ -18,6 +59,7 @@ def convert_pcap_to_ecs(
     tls_keylog: Optional[Path] = None,
     tshark_bin: Optional[Path] = None,
     remove_index_messages: bool = False,
+    remove_filtered: bool = False,
     packet_summary: bool = False,
     packet_details: bool = True,
     read_filter: Optional[str] = None,
@@ -42,6 +84,7 @@ def convert_pcap_to_ecs(
         tshark_bin: Path to your tshark binary (searches in common paths if not supplied)
         remove_index_messages: If the elasticsearch bulk API index messages should be stripped from the output file.
                                Useful when using logstash or similar instead of the bulk API.
+        remove_filtered: Remove filtered fields from the event dicts.
         packet_summary: If the packet summaries should be included (-P option).
         packet_details: If the packet details should be included, when packet_summary=False then details are always included (-V option).
         read_filter: The read filter to use when reading the pcap file useful to reduce the number of packets (-Y option)
@@ -89,6 +132,8 @@ def convert_pcap_to_ecs(
         for line in io.TextIOWrapper(proc.stdout, encoding="utf-8"):
             # when remove index is true discard all index lines
             if not remove_index_messages or not index_regex.match(line):
+                if remove_filtered:
+                    line = pcap_ecs_remove_filtered(line)
                 dest_file.write(line)
     # ensure tshark process has finished
     proc.wait()
