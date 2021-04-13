@@ -41,6 +41,7 @@ input {
             "[@metadata][kyoushi][host][name]" => "{{ name }}"
             "[@metadata][kyoushi][host][hostname]" => "{{ server['hostname'] | default(name) }}"
             "[@metadata][kyoushi][host][ip]" => "{{ server['default_ipv4_address'] | default(server['default_ipv6_address']) }}"
+            "[@metadata][kyoushi][host][fqdn]" => {{ server["fqdns"] | default([]) | tojson }}
             "[@metadata][event][timezone]" => "{{ server.timezone }}"
 {%- for _field,_value in log.add_field.items() %}
             "{{ _field }}" => {{ _value | tojson }}
