@@ -1,7 +1,10 @@
+from time import sleep
 from typing import (
     Any,
     Dict,
     List,
+    Sequence,
+    Union,
 )
 
 from elasticsearch import Elasticsearch
@@ -47,3 +50,26 @@ def scan_composite(search: Search, name: str) -> List[Bucket]:
         else:
             # resume query after the key
             search.aggs[name].after = result.aggregations[name].after_key
+
+
+def search_eql(
+    es: Elasticsearch,
+    index: Union[Sequence[str], str, None],
+    body: Dict[str, Any],
+    check_interval: float = 0.5,
+) -> Dict[str, Any]:
+    result = es.eql.search(index=index, body=body, wait_for_completion_timeout="0s")
+    result_id = None
+    while result["is_running"]:
+        result_id = result["id"]
+        sleep(check_interval)
+        result = es.eql.get_status(result_id)
+
+    # if result id is not none then we have a async request and have
+    # to retrieve the actual result and delete the async data
+    if result_id is not None:
+        result = es.eql.get(result_id)
+        # delete the async request once we have its data
+        es.eql.delete(result_id)
+
+    return result["hits"]

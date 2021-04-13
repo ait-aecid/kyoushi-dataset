@@ -10,11 +10,18 @@ from typing import (
     List,
     Optional,
     Sequence,
+    Text,
     Union,
 )
 
 from elasticsearch import Elasticsearch
-from elasticsearch_dsl import UpdateByQuery
+from elasticsearch.exceptions import RequestError as ElasticsearchRequestError
+from elasticsearch_dsl import (
+    Keyword,
+    Mapping,
+    Search,
+    UpdateByQuery,
+)
 from elasticsearch_dsl.connections import get_connection
 from elasticsearch_dsl.exceptions import UnknownDslObject
 from pydantic import (
@@ -29,6 +36,7 @@ from pydantic.error_wrappers import (
 )
 
 from .config import DatasetConfig
+from .elasticsearch import search_eql
 from .utils import resolve_indices
 
 
@@ -45,15 +53,25 @@ else:
 
 UPDATE_SCRIPT = """
 boolean updated = false;
-if (ctx._source[params.label_object] == null) {
-    ctx._source[params.label_object] = [:];
-}
+String labels_flat = params.labels.join(";");
+// this should only happen once when we first encounter a line
 if (
-    ctx._source[params.label_object][params.rule] == null ||
-    ctx._source[params.label_object][params.rule].size() != params.labels.size() ||
-    !ctx._source[params.label_object][params.rule].containsAll(params.labels)
+    ctx._source.{{ label_object }} == null ||
+    ctx._source.{{ label_object }}.list == null ||
+    ctx._source.{{ label_object }}.flat == null ||
+    ctx._source.{{ label_object }}.rules == null
 ) {
-    ctx._source[params.label_object][params.rule] = params.labels;
+    ctx._source.{{ label_object }} = [:];
+    ctx._source.{{ label_object }}.list = [:];
+    ctx._source.{{ label_object }}.flat = [:];
+    ctx._source.{{ label_object }}.rules = [];
+}
+if (ctx._source.{{ label_object }}.flat[params.rule] != labels_flat) {
+    ctx._source.{{ label_object }}.list[params.rule] = params.labels;
+    ctx._source.{{ label_object }}.flat[params.rule] = labels_flat;
+    if (!ctx._source.{{ label_object }}.rules.contains(params.rule)) {
+        ctx._source.{{ label_object }}.rules.add(params.rule)
+    }
     updated = true;
 }
 if (!updated) {
@@ -61,30 +79,92 @@ if (!updated) {
 }
 """
 
+LABEL_FILTER_SCRIPT = """
+boolean found;
+for (label in params.labels) {
+    // rows that are not labeled do not have the key
+    found = false;
+    for (rule in doc["{{ label_object }}.rules"]) {
+        found = doc["{{ label_object }}.list."+rule].contains(label);
+        if (found) {
+            break;
+        }
+    }
+    // if found is false here then we did not find the current label
+    if (!found) {
+        return false;
+    }
+}
+return true;
+"""
 
-def create_update_script(es: Elasticsearch, id_: str = "kyoushi_label_update"):
-    body = {
+LABELS_FIELD_SCRIPT = """
+doc["{{ label_object }}.rules"].stream()
+    .flatMap(l -> doc["{{ label_object }}.list."+l].stream())
+    .distinct()
+    .sorted()
+    .collect(Collectors.toList());
+"""
+
+
+def create_kyoushi_scripts(
+    es: Elasticsearch,
+    dataset_name: str,
+    label_object: str = "kyoushi_labels",
+):
+    update_script = {
         "script": {
             "description": "Kyoushi Dataset - Update by Query label script",
             "lang": "painless",
-            "source": UPDATE_SCRIPT,
+            "source": UPDATE_SCRIPT.replace("{{ label_object }}", label_object),
         }
     }
-    es.put_script(id=id_, body=body, context="update")
+    es.put_script(
+        id=f"{dataset_name}_kyoushi_label_update", body=update_script, context="update"
+    )
+
+    filter_script = {
+        "script": {
+            "lang": "painless",
+            "source": LABEL_FILTER_SCRIPT.replace("{{ label_object }}", label_object),
+        }
+    }
+    es.put_script(
+        f"{dataset_name}_kyoushi_label_filter", body=filter_script, context="filter"
+    )
+
+    labels_field = {
+        "script": {
+            "lang": "painless",
+            "source": LABELS_FIELD_SCRIPT.replace("{{ label_object }}", label_object),
+        }
+    }
+
+    es.put_script(
+        f"{dataset_name}_kyoushi_label_field", body=labels_field, context="field"
+    )
 
 
 def apply_labels_by_update_dsl(
     update: UpdateByQuery,
+    script_params: Dict[str, Any],
+    update_script_id: str,
     check_interval: float = 0.5,
 ) -> int:
     # refresh=True is important so that consecutive rules
     # have a consitant state
     es: Elasticsearch = get_connection(update._using)
+
+    # add update script
+    update = update.script(id=update_script_id, params=script_params)
+
+    # run update task
     task = update.params(refresh=True, wait_for_completion=False).execute().task
-    task_info = es.tasks.get(task)
+    task_info = es.tasks.get(task_id=task)
+
     while not task_info["completed"]:
         sleep(check_interval)
-        task_info = es.tasks.get(task)
+        task_info = es.tasks.get(task_id=task)
 
     with warnings.catch_warnings():
         # ToDo: Elasticsearch (7.12) does not provide any API to delete update by query tasks
@@ -106,8 +186,13 @@ def apply_labels_by_query(
 ) -> int:
     update = UpdateByQuery(using=es, index=index)
     update = update.update_from_dict(query)
-    update = update.script(id=update_script_id, params=script_params)
-    return apply_labels_by_update_dsl(update, check_interval)
+    return apply_labels_by_update_dsl(
+        update, script_params, update_script_id, check_interval
+    )
+
+
+class LabelException(Exception):
+    pass
 
 
 @runtime_checkable
@@ -161,12 +246,16 @@ class RuleBase(BaseModel):
     ) -> int:
         raise NotImplementedError()
 
-    def update_params(self, label_object: str) -> Dict[str, Any]:
+    def update_params(self) -> Dict[str, Any]:
         return {
-            "label_object": label_object,
             "rule": self.id_,
             "labels": self.labels,
         }
+
+    @validator("labels", each_item=True)
+    def validate_label_no_semicolon(cls, val: str) -> str:
+        assert ";" not in val, f"Labels must not contain semicolons, but got '{val}'"
+        return val
 
 
 class RuleList(BaseModel):
@@ -260,6 +349,12 @@ class UpdateByQueryRule(RuleBase):
         if not isinstance(self.exclude, List):
             self.exclude = [self.exclude] if self.exclude is not None else []
 
+        # exclude already correctly labeled rows from the result set
+        update = update.exclude(
+            "term",
+            **{f"{label_object}.flat.{self.id_}": ";".join(self.labels)},
+        )
+
         for q in self.query:
             update = update.query(q)
         for f in self.filter_:
@@ -267,11 +362,9 @@ class UpdateByQueryRule(RuleBase):
         for e in self.exclude:
             update = update.exclude(e)
 
-        update = update.script(
-            id=update_script_id, params=self.update_params(label_object)
+        result = apply_labels_by_update_dsl(
+            update, self.update_params(), update_script_id
         )
-
-        result = apply_labels_by_update_dsl(update)
 
         return result
 
@@ -330,6 +423,192 @@ class UpdateByQueryRule(RuleBase):
         return value
 
 
+class EqlSequenceRule(RuleBase):
+    type_: ClassVar[str] = "elasticsearch.sequence"
+    index: Optional[Union[List[str], str]] = Field(
+        None,
+        description="The indices to query (by default prefixed with the dataset name)",
+    )
+
+    by: Optional[Union[List[str], str]] = Field(
+        None, description="Optional global sequence by fields"
+    )
+
+    max_span: Optional[str] = Field(
+        None,
+        description="Optional max time span in which a sequence must occur to be considered a match",
+    )
+
+    until: Optional[str] = Field(
+        None,
+        description="Optional until event marking the end of valid sequences. The until event will not be labeled.",
+    )
+
+    sequences: List[str] = Field(
+        ...,
+        description="Event sequences to search. Must contain at least two events.",
+    )
+
+    filter_: Optional[Union[List[Dict[str, Any]], Dict[str, Any]]] = Field(
+        None,
+        description="The filter/s to limit queried to documents to only those that match the filters",
+        alias="filter",
+    )
+
+    event_category_field: str = Field(
+        "event.category",
+        description="The field used to categories events",
+    )
+
+    timestamp_field: str = Field(
+        "@timestamp",
+        description="The field containing the event timestamp",
+    )
+
+    tiebreaker_field: Optional[str] = Field(
+        None,
+        description="(Optional, string) Field used to sort hits with the same timestamp in ascending order.",
+    )
+
+    batch_size: int = Field(
+        1000,
+        description="The amount of sequences to update with each batch. Cannot be bigger than `max_result_window`",
+    )
+
+    max_result_window: int = Field(
+        10000,
+        description="The max result window allowed on the elasticsearch instance",
+    )
+
+    indices_prefix_dataset: bool = Field(
+        True,
+        description=(
+            "If set to true the `<DATASET.name>-` is automatically prefixed to each pattern. "
+            "This is a convenience setting as per default all dataset indices start with this prefix."
+        ),
+    )
+
+    def query(self) -> str:
+        query = "sequence"
+
+        if self.by is not None:
+            if isinstance(self.by, Text):
+                query += f" by {self.by}"
+            elif len(self.by) > 0:
+                query += f" by {', '.join(self.by)}"
+
+        if self.max_span is not None:
+            query += f" with maxspan={self.max_span}"
+
+        for sequence in self.sequences:
+            query += f"\n  {sequence}"
+
+        if self.until is not None:
+            query += f"\nuntil {self.until}"
+        return query
+
+    def apply(
+        self,
+        dataset_dir: Path,
+        dataset_config: DatasetConfig,
+        es: Elasticsearch,
+        update_script_id: str,
+        label_object: str,
+    ) -> int:
+        index: Optional[Union[Sequence[str], str]] = resolve_indices(
+            dataset_config.name, self.indices_prefix_dataset, self.index
+        )
+        filter_ = Search()
+
+        # ensure filter is a list
+        if not isinstance(self.filter_, List):
+            self.filter_ = [self.filter_] if self.filter_ is not None else []
+
+        # exclude already correctly labeled rows from the result set
+        filter_ = filter_.query(
+            "bool",
+            must_not=[
+                {"term": {f"{label_object}.flat.{self.id_}": ";".join(self.labels)}}
+            ],
+        )
+
+        for f in self.filter_:
+            filter_ = filter_.query(f)
+
+        # since we add our label exclusion we always have a query object in filter_
+        filter_query = filter_.to_dict()["query"]
+        query = self.query()
+
+        body = {
+            "query": query,
+            "size": min(self.max_result_window, self.max_result_window),
+            # set fetch size bigger than size, but at most max_result_window
+            "fetch_size": min(int(self.batch_size * 1.5), self.max_result_window),
+            "event_category_field": self.event_category_field,
+            "timestamp_field": self.timestamp_field,
+        }
+        if len(filter_query) > 0:
+            body["filter"] = filter_query
+
+        if self.tiebreaker_field is not None:
+            body["tiebreaker_field"] = self.tiebreaker_field
+
+        updated = 0
+        # as of elk 7.12 of there is no way to ensure we get all even through the EQL api
+        # (there is no scan or search after like for the DSL API)
+        # so manually search in batches for sequences with events that are not labeled yet
+        # we stop only when we do not get any results anymore i.e., all events have been labeled
+        # this is obviously not the most efficient approach but its the best we can do for now
+        while True:
+            hits = search_eql(es, index, body)
+            if hits["total"]["value"] > 0:
+                index_ids: Dict[str, List[str]] = {}
+                # we have to sort the events by indices
+                # because ids are only guranteed to be uniq per index
+                for sequence in hits["sequences"]:
+                    for event in sequence["events"]:
+                        index_ids.setdefault(event["_index"], []).append(event["_id"])
+                # add labels to each event per index
+                for _index, ids in index_ids.items():
+                    update = UpdateByQuery(using=es, index=_index).query(
+                        "ids", values=ids
+                    )
+                    # apply labels to events
+                    updated += apply_labels_by_update_dsl(
+                        update, self.update_params(), update_script_id
+                    )
+            else:
+                # end loop once we do not find new events anymore
+                break
+
+        return updated
+
+    @validator("filter_")
+    def validate_filter(
+        cls, value: Union[List[Dict[str, Any]], Dict[str, Any]], values: Dict[str, Any]
+    ) -> Union[List[Dict[str, Any]], Dict[str, Any]]:
+        # temporary update by query object used to validate the input filters
+        _temp = Search()
+        errors = []
+        if not isinstance(value, List):
+            value = [value]
+        for i, filter_ in enumerate(value):
+            try:
+                _temp = _temp.query(filter_)
+            except (TypeError, UnknownDslObject, ValueError) as e:
+                errors.append(ErrorWrapper(e, (i,)))
+        if len(errors) > 0:
+            raise ValidationError(errors, UpdateByQueryRule)
+        return value
+
+    @validator("sequences")
+    def validate_at_least_two(cls, value: List[str]) -> List[str]:
+        assert (
+            len(value) > 1
+        ), "Need at least 2 sequences! Use `elasticsearch.query` if you only want 1 event."
+        return value
+
+
 class Labeler:
     def __init__(
         self,
@@ -343,10 +622,37 @@ class Labeler:
             {
                 NoopRule.type_: NoopRule,
                 UpdateByQueryRule.type_: UpdateByQueryRule,
+                EqlSequenceRule.type_: EqlSequenceRule,
             }
         )
         self.update_script_id: str = update_script_id
         self.label_object: str = label_object
+
+    def add_label_object_mapping(
+        self,
+        es: Elasticsearch,
+        dataset_name: str,
+        rules: List[Rule],
+    ):
+        root = Mapping()
+        flat = {}
+        list_ = {}
+
+        for rule in rules:
+            flat[rule.id_] = Keyword()
+            list_[rule.id_] = Keyword(multi=True)
+
+        properties = {
+            "flat": {
+                "properties": flat,
+            },
+            "list": {
+                "properties": list_,
+            },
+            "rules": {"type": "keyword"},
+        }
+        root.field(self.label_object, "object", properties=properties)
+        es.indices.put_mapping(index=f"{dataset_name}-*", body=root.to_dict())
 
     def execute(
         self,
@@ -369,16 +675,26 @@ class Labeler:
         if len(errors) > 0:
             raise ValidationError(errors, RuleList)
 
+        # create mappings for rule label fields
+        # we need to do this since EQL queries cannot check existence of non mapped fields
+        self.add_label_object_mapping(es, dataset_config.name, rule_objects)
+
         # ensure update script exists
-        create_update_script(es, self.update_script_id)
+        create_kyoushi_scripts(es, dataset_config.name, self.label_object)
 
         # start labeling process
         for rule in rule_objects:
-            updated = rule.apply(
-                dataset_dir,
-                dataset_config,
-                es,
-                self.update_script_id,
-                self.label_object,
-            )
-            print(f"Rule {rule.id_} applied labels: {rule.labels} to {updated} lines.")
+            try:
+                print(f"Applying rule {rule.id_} ...")
+                updated = rule.apply(
+                    dataset_dir,
+                    dataset_config,
+                    es,
+                    f"{dataset_config.name}_{self.update_script_id}",
+                    self.label_object,
+                )
+                print(
+                    f"Rule {rule.id_} applied labels: {rule.labels} to {updated} lines."
+                )
+            except ElasticsearchRequestError as e:
+                raise LabelException(f"Error executing rule '{rule.id_}'", e)

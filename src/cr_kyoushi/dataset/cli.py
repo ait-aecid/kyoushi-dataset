@@ -24,7 +24,10 @@ from .config import (
     DatasetConfig,
     ProcessingConfig,
 )
-from .labels import Labeler
+from .labels import (
+    Labeler,
+    LabelException,
+)
 from .parser import LogstashParser
 from .processors import ProcessorPipeline
 from .utils import (
@@ -348,7 +351,7 @@ def label(
             raise click.UsageError(f"Given rule directory '{d_path}' does not exist")
 
     labeler = Labeler(
-        update_script_id=f"{dataset_config.name}_kyoushi_label_update",
+        update_script_id="kyoushi_label_update",
         label_object=label_object,
     )
 
@@ -356,6 +359,9 @@ def label(
         labeler.execute(rules, info.dataset_dir, dataset_config, es)
     except ValidationError as e:
         raise click.UsageError(f"Error while parsing the rules: {e}")
+    except LabelException as e:
+        print(f"Error while executing the rules: \n{e}")
+        raise click.Abort()
 
 
 def _get_rule_files(directory: Path) -> List[Path]:
