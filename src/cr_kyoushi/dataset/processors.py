@@ -768,6 +768,9 @@ class TrimProcessor(ProcessorBase):
         # any file that still has a docs before entry
         # does not have any logs within the trim range and thus should be deleted
         for path in docs_before.keys():
+            print(
+                f"Removing {path} as it does not have any log lines within the observation time."
+            )
             # delete the file
             Path(path).unlink()
 
