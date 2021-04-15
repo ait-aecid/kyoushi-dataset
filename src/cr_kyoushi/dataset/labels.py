@@ -24,6 +24,7 @@ from elasticsearch_dsl import (
 )
 from elasticsearch_dsl.connections import get_connection
 from elasticsearch_dsl.exceptions import UnknownDslObject
+from elasticsearch_dsl.response.aggs import Bucket
 from pydantic import (
     BaseModel,
     Field,
@@ -36,7 +37,10 @@ from pydantic.error_wrappers import (
 )
 
 from .config import DatasetConfig
-from .elasticsearch import search_eql
+from .elasticsearch import (
+    scan_composite,
+    search_eql,
+)
 from .utils import resolve_indices
 
 
@@ -104,6 +108,19 @@ doc["{{ label_object }}.rules"].stream()
     .distinct()
     .sorted()
     .collect(Collectors.toList());
+"""
+
+LABELS_AGGREGATES_FIELD_SCRIPT = """
+// ensure we only emit each label once
+List labels = doc["kyoushi_labels.rules"]
+    .stream()
+    .flatMap(
+        l -> doc["kyoushi_labels.list."+l].stream()
+    ).distinct()
+    .collect(Collectors.toList());
+for (label in labels) {
+     emit(label);
+}
 """
 
 
@@ -189,6 +206,33 @@ def apply_labels_by_query(
     return apply_labels_by_update_dsl(
         update, script_params, update_script_id, check_interval
     )
+
+
+def get_label_counts(
+    es: Elasticsearch,
+    index: Union[List[str], str, None] = None,
+    label_object: str = "kyoushi_labels",
+) -> List[Bucket]:
+    # disable request cache to ensure we always get latest info
+    search_labels = Search(using=es, index=index).params(request_cache=False)
+    runtime_mappings = {
+        "labels": {
+            "type": "keyword",
+            "script": LABELS_AGGREGATES_FIELD_SCRIPT,
+        }
+    }
+    search_labels = search_labels.extra(runtime_mappings=runtime_mappings)
+
+    # setup aggregations
+    search_labels.aggs.bucket(
+        "labels",
+        "composite",
+        sources=[{"label": {"terms": {"field": "labels"}}}],
+    )
+
+    search_labels.aggs["labels"].bucket("file", "terms", field="log.file.path")
+
+    return scan_composite(search_labels, "labels")
 
 
 class LabelException(Exception):

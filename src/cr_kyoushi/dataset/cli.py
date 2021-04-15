@@ -1,3 +1,4 @@
+import json
 import os
 import shutil
 
@@ -8,6 +9,7 @@ from typing import (
     Any,
     Dict,
     List,
+    Optional,
 )
 
 import click
@@ -27,9 +29,14 @@ from .config import (
 from .labels import (
     Labeler,
     LabelException,
+    get_label_counts,
 )
 from .parser import LogstashParser
 from .processors import ProcessorPipeline
+from .sample import (
+    get_sample,
+    get_sample_log,
+)
 from .utils import (
     load_file,
     write_model_to_yaml,
@@ -370,3 +377,143 @@ def _get_rule_files(directory: Path) -> List[Path]:
     for t in types:
         files.extend(directory.glob(t))
     return sorted(files)
+
+
+@cli.command()
+@click.option(
+    "--dataset-config",
+    "dataset_cfg_path",
+    type=CliPath(exists=True, dir_okay=False, resolve_path=True, readable=True),
+    default="./dataset.yaml",
+    help="The dataset configuration file (defaults to <dataset dir>/dataset.yaml)",
+)
+@click.option(
+    "--label-object",
+    "label_object",
+    default="kyoushi_labels",
+    help="The field to store the labels in",
+)
+@click.option(
+    "--label",
+    "-l",
+    "label",
+    help="The label to get sample log lines for (if this is not set then unlabeled log lines will be sampled)",
+)
+@click.option(
+    "--files",
+    "-f",
+    "files",
+    help=(
+        "Optionally a comma separated list of files to get sample log lines from "
+        "(if this is not set all files matching the label option will be drawn from)."
+    ),
+)
+@click.option(
+    "--related",
+    "-r",
+    "related",
+    help=(
+        "Optionally a comma separated list of files for which to include the log line, "
+        "that is closest (based on the timestamp) to the selected sample, as meta information."
+    ),
+)
+@click.option(
+    "--default-label",
+    "default_label",
+    default="normal",
+    help="The label to assign to unlabeled log row (e.g., when --label is not used)",
+)
+@click.option(
+    "--index",
+    "-i",
+    "index",
+    help="Comma separated list of indices to consider for sampling",
+)
+@click.option(
+    "--exclude-index",
+    "-e",
+    "exclude",
+    help="Comma separated list of indices to explicitly exclude from the sampling",
+)
+@click.option(
+    "--seed",
+    "-s",
+    help="The random seed to use for the sampling query",
+)
+@click.option(
+    "--seed-field",
+    "seed_field",
+    default="_seq_no",
+    help="The field to use for the elasticsearch random score",
+)
+@click.option(
+    "--list",
+    "list_only",
+    is_flag=True,
+    help="Only list the available labels with their log line counts as JSON array",
+)
+@click.argument("size", type=click.INT, default=10)
+@pass_info
+@click.pass_context
+def sample(
+    ctx: click.Context,
+    info: Info,
+    dataset_cfg_path: Path,
+    label_object: str,
+    label: Optional[str],
+    files: Optional[str],
+    related: Optional[str],
+    default_label: str,
+    index: Optional[str],
+    exclude: Optional[str],
+    seed: Optional[int],
+    seed_field: str,
+    list_only: bool,
+    size: int,
+):
+    dataset_config = DatasetConfig.parse_obj(load_file(dataset_cfg_path))
+    es = Elasticsearch([info.elasticsearch_url], timeout=180)
+
+    _index = (
+        [f"{dataset_config.name}-{i}" for i in index.split(",")]
+        if index is not None
+        else [f"{dataset_config.name}-*"]
+    )
+
+    if exclude is not None:
+        _index.extend([f"-{dataset_config.name}-{i}" for i in exclude.split(",")])
+
+    if list_only:
+        # rune composite query to get all labels
+        buckets = get_label_counts(es, index=_index, label_object=label_object)
+        print(json.dumps([b.to_dict() for b in buckets]))
+    else:
+
+        _label = [label] if label is not None else []
+        _files = files.split(",") if files is not None else []
+        _related = related.split(",") if related is not None else []
+
+        lines = get_sample(
+            es,
+            label_filter_script_id=f"{dataset_config.name}_kyoushi_label_filter",
+            labels=_label,
+            files=_files,
+            index=_index,
+            label_object=label_object,
+            size=size,
+            seed=seed,
+            seed_field=seed_field,
+        )
+
+        print(
+            json.dumps(
+                get_sample_log(
+                    es,
+                    lines[0],
+                    label if label is not None else default_label,
+                    info.dataset_dir.joinpath(LAYOUT.GATHER.value),
+                    related=_related,
+                    index=_index,
+                )
+            )
+        )
