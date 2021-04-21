@@ -25,6 +25,7 @@ from elasticsearch_dsl import (
 from elasticsearch_dsl.connections import get_connection
 from elasticsearch_dsl.exceptions import UnknownDslObject
 from elasticsearch_dsl.response.aggs import Bucket
+from elasticsearch_dsl.response.hit import Hit
 from pydantic import (
     BaseModel,
     Field,
@@ -40,6 +41,10 @@ from .config import DatasetConfig
 from .elasticsearch import (
     scan_composite,
     search_eql,
+)
+from .templates import (
+    render_template,
+    render_template_recursive,
 )
 from .utils import resolve_indices
 
@@ -343,8 +348,7 @@ class NoopRule(RuleBase):
         return 0
 
 
-class UpdateByQueryRule(RuleBase):
-    type_: ClassVar[str] = "elasticsearch.query"
+class QueryBase(BaseModel):
     index: Optional[Union[List[str], str]] = Field(
         None,
         description="The indices to query (by default prefixed with the dataset name)",
@@ -371,46 +375,6 @@ class UpdateByQueryRule(RuleBase):
             "This is a convenience setting as per default all dataset indices start with this prefix."
         ),
     )
-
-    def apply(
-        self,
-        dataset_dir: Path,
-        dataset_config: DatasetConfig,
-        es: Elasticsearch,
-        update_script_id: str,
-        label_object: str,
-    ) -> int:
-        index: Optional[Union[Sequence[str], str]] = resolve_indices(
-            dataset_config.name, self.indices_prefix_dataset, self.index
-        )
-        update = UpdateByQuery(using=es, index=index)
-
-        # ensure we have lists
-        if not isinstance(self.query, List):
-            self.query = [self.query]
-        if not isinstance(self.filter_, List):
-            self.filter_ = [self.filter_] if self.filter_ is not None else []
-        if not isinstance(self.exclude, List):
-            self.exclude = [self.exclude] if self.exclude is not None else []
-
-        # exclude already correctly labeled rows from the result set
-        update = update.exclude(
-            "term",
-            **{f"{label_object}.flat.{self.id_}": ";".join(self.labels)},
-        )
-
-        for q in self.query:
-            update = update.query(q)
-        for f in self.filter_:
-            update = update.filter(f)
-        for e in self.exclude:
-            update = update.exclude(e)
-
-        result = apply_labels_by_update_dsl(
-            update, self.update_params(), update_script_id
-        )
-
-        return result
 
     @validator("query")
     def validate_queries(
@@ -467,8 +431,272 @@ class UpdateByQueryRule(RuleBase):
         return value
 
 
-class EqlSequenceRule(RuleBase):
-    type_: ClassVar[str] = "elasticsearch.sequence"
+class UpdateByQueryRule(RuleBase, QueryBase):
+    type_: ClassVar[str] = "elasticsearch.query"
+    index: Optional[Union[List[str], str]] = Field(
+        None,
+        description="The indices to query (by default prefixed with the dataset name)",
+    )
+
+    def apply(
+        self,
+        dataset_dir: Path,
+        dataset_config: DatasetConfig,
+        es: Elasticsearch,
+        update_script_id: str,
+        label_object: str,
+    ) -> int:
+        index: Optional[Union[Sequence[str], str]] = resolve_indices(
+            dataset_config.name, self.indices_prefix_dataset, self.index
+        )
+        update = UpdateByQuery(using=es, index=index)
+
+        # ensure we have lists
+        if not isinstance(self.query, List):
+            self.query = [self.query]
+        if not isinstance(self.filter_, List):
+            self.filter_ = [self.filter_] if self.filter_ is not None else []
+        if not isinstance(self.exclude, List):
+            self.exclude = [self.exclude] if self.exclude is not None else []
+
+        # exclude already correctly labeled rows from the result set
+        update = update.exclude(
+            "term",
+            **{f"{label_object}.flat.{self.id_}": ";".join(self.labels)},
+        )
+
+        for q in self.query:
+            update = update.query(q)
+        for f in self.filter_:
+            update = update.filter(f)
+        for e in self.exclude:
+            update = update.exclude(e)
+
+        result = apply_labels_by_update_dsl(
+            update, self.update_params(), update_script_id
+        )
+
+        return result
+
+
+def render_query_base(hit: Hit, query: QueryBase) -> QueryBase:
+    variables = {"HIT": hit}
+
+    # render the index var
+    if isinstance(query.index, str):
+        query.index = render_template(query.index, variables)
+    elif isinstance(query.index, Sequence):
+        query.index = [render_template(i, variables) for i in query.index]
+
+    # ensure we have lists
+    if not isinstance(query.query, List):
+        query.query = [query.query]
+    if not isinstance(query.filter_, List):
+        query.filter_ = [query.filter_] if query.filter_ is not None else []
+    if not isinstance(query.exclude, List):
+        query.exclude = [query.exclude] if query.exclude is not None else []
+
+    query.query = [render_template_recursive(q, variables) for q in query.query]
+    query.filter_ = [render_template_recursive(f, variables) for f in query.filter_]
+    query.exclude = [render_template_recursive(e, variables) for e in query.exclude]
+
+    return query
+
+
+class UpdateSubQueryRule(RuleBase, QueryBase):
+    type_: ClassVar[str] = "elasticsearch.sub_query"
+    index: Optional[Union[List[str], str]] = Field(
+        None,
+        description="The indices to query (by default prefixed with the dataset name)",
+    )
+
+    sub_query: QueryBase = Field(
+        ...,
+        description="The templated sub query to use to apply the labels. Executed for each hit of the parent query.",
+    )
+
+    def apply(
+        self,
+        dataset_dir: Path,
+        dataset_config: DatasetConfig,
+        es: Elasticsearch,
+        update_script_id: str,
+        label_object: str,
+    ) -> int:
+        index: Optional[Union[Sequence[str], str]] = resolve_indices(
+            dataset_config.name, self.indices_prefix_dataset, self.index
+        )
+        search = Search(using=es, index=index)
+
+        # ensure we have lists
+        if not isinstance(self.query, List):
+            self.query = [self.query]
+        if not isinstance(self.filter_, List):
+            self.filter_ = [self.filter_] if self.filter_ is not None else []
+        if not isinstance(self.exclude, List):
+            self.exclude = [self.exclude] if self.exclude is not None else []
+
+        # exclude already correctly labeled rows from the result set
+        search = search.exclude(
+            "term",
+            **{f"{label_object}.flat.{self.id_}": ";".join(self.labels)},
+        )
+
+        for q in self.query:
+            search = search.query(q)
+        for f in self.filter_:
+            search = search.filter(f)
+        for e in self.exclude:
+            search = search.exclude(e)
+
+        result = 0
+        for hit in search.scan():
+            # make deep copy of sub query so we can template it
+            sub_query = self.sub_query.copy(deep=True)
+
+            # render the subquery
+            sub_query = render_query_base(hit, sub_query)
+
+            sub_rule = UpdateByQueryRule(
+                type="elasticsearch.query",
+                id=self.id_,
+                labels=self.labels,
+                description=self.description,
+                index=sub_query.index,
+                query=sub_query.query,
+                filter=sub_query.filter_,
+                exclude=sub_query.exclude,
+                indices_prefix_dataset=sub_query.indices_prefix_dataset,
+            )
+            result += sub_rule.apply(
+                dataset_dir, dataset_config, es, update_script_id, label_object
+            )
+        return result
+
+
+class UpdateParentQueryRule(RuleBase, QueryBase):
+    type_: ClassVar[str] = "elasticsearch.parent_query"
+    index: Optional[Union[List[str], str]] = Field(
+        None,
+        description="The indices to query (by default prefixed with the dataset name)",
+    )
+
+    parent_query: QueryBase = Field(
+        ...,
+        description="The templated parent query to check if the labels should be applied to a query hit.",
+    )
+
+    min_match: int = Field(
+        1,
+        description="The minimum number of parent matches needed for the main query to be labeled.",
+    )
+
+    max_result_window: int = Field(
+        10000,
+        description="The max result window allowed on the elasticsearch instance",
+    )
+
+    def check_parent(
+        self,
+        parent_query: QueryBase,
+        min_match: int,
+        dataset_config: DatasetConfig,
+        es: Elasticsearch,
+    ) -> bool:
+        index: Optional[Union[Sequence[str], str]] = resolve_indices(
+            dataset_config.name, parent_query.indices_prefix_dataset, parent_query.index
+        )
+        search = Search(using=es, index=index)
+
+        # ensure we have lists
+        if not isinstance(parent_query.query, List):
+            parent_query.query = [parent_query.query]
+        if not isinstance(parent_query.filter_, List):
+            parent_query.filter_ = (
+                [parent_query.filter_] if parent_query.filter_ is not None else []
+            )
+        if not isinstance(parent_query.exclude, List):
+            parent_query.exclude = (
+                [parent_query.exclude] if parent_query.exclude is not None else []
+            )
+
+        for q in parent_query.query:
+            search = search.query(q)
+        for f in parent_query.filter_:
+            search = search.filter(f)
+        for e in parent_query.exclude:
+            search = search.exclude(e)
+
+        return search.execute().hits.total.value >= min_match
+
+    def apply(
+        self,
+        dataset_dir: Path,
+        dataset_config: DatasetConfig,
+        es: Elasticsearch,
+        update_script_id: str,
+        label_object: str,
+    ) -> int:
+        index: Optional[Union[Sequence[str], str]] = resolve_indices(
+            dataset_config.name, self.indices_prefix_dataset, self.index
+        )
+        search = Search(using=es, index=index)
+
+        # ensure we have lists
+        if not isinstance(self.query, List):
+            self.query = [self.query]
+        if not isinstance(self.filter_, List):
+            self.filter_ = [self.filter_] if self.filter_ is not None else []
+        if not isinstance(self.exclude, List):
+            self.exclude = [self.exclude] if self.exclude is not None else []
+
+        # exclude already correctly labeled rows from the result set
+        search = search.exclude(
+            "term",
+            **{f"{label_object}.flat.{self.id_}": ";".join(self.labels)},
+        )
+
+        for q in self.query:
+            search = search.query(q)
+        for f in self.filter_:
+            search = search.filter(f)
+        for e in self.exclude:
+            search = search.exclude(e)
+
+        result = 0
+        update_map: Dict[str, List[str]] = {}
+        _i = 0
+        for hit in search.scan():
+            _i += 1
+            # make deep copy of parent query so we can template it
+            parent_query = self.parent_query.copy(deep=True)
+
+            # render the subquery
+            parent_query = render_query_base(hit, parent_query)
+
+            if self.check_parent(parent_query, self.min_match, dataset_config, es):
+                update_map.setdefault(hit.meta.index, []).append(hit.meta.id)
+
+        # add labels to each event per index
+        for _index, ids in update_map.items():
+            # split the update requests into chunks of at most max result window
+            update_chunks = [
+                ids[i : i + self.max_result_window]
+                for i in range(0, len(ids), self.max_result_window)
+            ]
+            for chunk in update_chunks:
+                update = UpdateByQuery(using=es, index=_index).query(
+                    "ids", values=chunk
+                )
+                # apply labels to events
+                result += apply_labels_by_update_dsl(
+                    update, self.update_params(), update_script_id
+                )
+
+        return result
+
+
+class EqlQueryBase(BaseModel):
     index: Optional[Union[List[str], str]] = Field(
         None,
         description="The indices to query (by default prefixed with the dataset name)",
@@ -551,82 +779,6 @@ class EqlSequenceRule(RuleBase):
             query += f"\nuntil {self.until}"
         return query
 
-    def apply(
-        self,
-        dataset_dir: Path,
-        dataset_config: DatasetConfig,
-        es: Elasticsearch,
-        update_script_id: str,
-        label_object: str,
-    ) -> int:
-        index: Optional[Union[Sequence[str], str]] = resolve_indices(
-            dataset_config.name, self.indices_prefix_dataset, self.index
-        )
-        filter_ = Search()
-
-        # ensure filter is a list
-        if not isinstance(self.filter_, List):
-            self.filter_ = [self.filter_] if self.filter_ is not None else []
-
-        # exclude already correctly labeled rows from the result set
-        filter_ = filter_.query(
-            "bool",
-            must_not=[
-                {"term": {f"{label_object}.flat.{self.id_}": ";".join(self.labels)}}
-            ],
-        )
-
-        for f in self.filter_:
-            filter_ = filter_.query(f)
-
-        # since we add our label exclusion we always have a query object in filter_
-        filter_query = filter_.to_dict()["query"]
-        query = self.query()
-
-        body = {
-            "query": query,
-            "size": min(self.max_result_window, self.max_result_window),
-            # set fetch size bigger than size, but at most max_result_window
-            "fetch_size": min(int(self.batch_size * 1.5), self.max_result_window),
-            "event_category_field": self.event_category_field,
-            "timestamp_field": self.timestamp_field,
-        }
-        if len(filter_query) > 0:
-            body["filter"] = filter_query
-
-        if self.tiebreaker_field is not None:
-            body["tiebreaker_field"] = self.tiebreaker_field
-
-        updated = 0
-        # as of elk 7.12 of there is no way to ensure we get all even through the EQL api
-        # (there is no scan or search after like for the DSL API)
-        # so manually search in batches for sequences with events that are not labeled yet
-        # we stop only when we do not get any results anymore i.e., all events have been labeled
-        # this is obviously not the most efficient approach but its the best we can do for now
-        while True:
-            hits = search_eql(es, index, body)
-            if hits["total"]["value"] > 0:
-                index_ids: Dict[str, List[str]] = {}
-                # we have to sort the events by indices
-                # because ids are only guranteed to be uniq per index
-                for sequence in hits["sequences"]:
-                    for event in sequence["events"]:
-                        index_ids.setdefault(event["_index"], []).append(event["_id"])
-                # add labels to each event per index
-                for _index, ids in index_ids.items():
-                    update = UpdateByQuery(using=es, index=_index).query(
-                        "ids", values=ids
-                    )
-                    # apply labels to events
-                    updated += apply_labels_by_update_dsl(
-                        update, self.update_params(), update_script_id
-                    )
-            else:
-                # end loop once we do not find new events anymore
-                break
-
-        return updated
-
     @validator("filter_")
     def validate_filter(
         cls, value: Union[List[Dict[str, Any]], Dict[str, Any]], values: Dict[str, Any]
@@ -653,6 +805,98 @@ class EqlSequenceRule(RuleBase):
         return value
 
 
+class EqlSequenceRule(RuleBase, EqlQueryBase):
+    type_: ClassVar[str] = "elasticsearch.sequence"
+
+    def _make_body(self, label_object: str):
+        filter_ = Search()
+
+        # ensure filter is a list
+        if not isinstance(self.filter_, List):
+            self.filter_ = [self.filter_] if self.filter_ is not None else []
+
+        # exclude already correctly labeled rows from the result set
+        filter_ = filter_.query(
+            "bool",
+            must_not=[
+                {"term": {f"{label_object}.flat.{self.id_}": ";".join(self.labels)}}
+            ],
+        )
+
+        for f in self.filter_:
+            filter_ = filter_.query(f)
+
+        # since we add our label exclusion we always have a query object in filter_
+        filter_query = filter_.to_dict()["query"]
+        query = self.query()
+
+        body = {
+            "query": query,
+            "size": int(self.max_result_window / len(self.sequences)),
+            # set fetch size bigger than size, but at most max_result_window
+            "fetch_size": min(int(self.batch_size * 1.5), self.max_result_window),
+            "event_category_field": self.event_category_field,
+            "timestamp_field": self.timestamp_field,
+        }
+        if len(filter_query) > 0:
+            body["filter"] = filter_query
+
+        if self.tiebreaker_field is not None:
+            body["tiebreaker_field"] = self.tiebreaker_field
+
+        return body
+
+    def apply(
+        self,
+        dataset_dir: Path,
+        dataset_config: DatasetConfig,
+        es: Elasticsearch,
+        update_script_id: str,
+        label_object: str,
+    ) -> int:
+        index: Optional[Union[Sequence[str], str]] = resolve_indices(
+            dataset_config.name, self.indices_prefix_dataset, self.index
+        )
+
+        body = self._make_body(label_object)
+
+        updated = 0
+        # as of elk 7.12 of there is no way to ensure we get all even through the EQL api
+        # (there is no scan or search after like for the DSL API)
+        # so manually search in batches for sequences with events that are not labeled yet
+        # we stop only when we do not get any results anymore i.e., all events have been labeled
+        # this is obviously not the most efficient approach but its the best we can do for now
+        while True:
+            hits = search_eql(es, index, body)
+            if hits["total"]["value"] > 0:
+                index_ids: Dict[str, List[str]] = {}
+                # we have to sort the events by indices
+                # because ids are only guranteed to be uniq per index
+                for sequence in hits["sequences"]:
+                    for event in sequence["events"]:
+                        index_ids.setdefault(event["_index"], []).append(event["_id"])
+                # add labels to each event per index
+                for _index, ids in index_ids.items():
+                    # split the update requests into chunks of at most max result window
+                    update_chunks = [
+                        ids[i : i + self.max_result_window]
+                        for i in range(0, len(ids), self.max_result_window)
+                    ]
+                    for chunk in update_chunks:
+                        update = UpdateByQuery(using=es, index=_index).query(
+                            "ids", values=chunk
+                        )
+                        # apply labels to events
+                        updated += apply_labels_by_update_dsl(
+                            update, self.update_params(), update_script_id
+                        )
+            else:
+                # end loop once we do not find new events anymore
+                break
+
+        return updated
+
+
 class Labeler:
     def __init__(
         self,
@@ -666,6 +910,8 @@ class Labeler:
             {
                 NoopRule.type_: NoopRule,
                 UpdateByQueryRule.type_: UpdateByQueryRule,
+                UpdateSubQueryRule.type_: UpdateSubQueryRule,
+                UpdateParentQueryRule.type_: UpdateParentQueryRule,
                 EqlSequenceRule.type_: EqlSequenceRule,
             }
         )

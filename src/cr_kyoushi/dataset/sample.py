@@ -1,3 +1,4 @@
+from datetime import datetime
 from pathlib import Path
 from typing import (
     Any,
@@ -9,6 +10,7 @@ from typing import (
 
 from elasticsearch import Elasticsearch
 from elasticsearch_dsl import Search
+from elasticsearch_dsl.query import Range
 from elasticsearch_dsl.response.hit import Hit
 
 
@@ -22,6 +24,8 @@ def get_sample(
     size: int = 10,
     seed: Optional[int] = None,
     seed_field: str = "_seq_no",
+    start: Union[str, datetime, float, None] = None,
+    stop: Union[str, datetime, float, None] = None,
 ) -> List[Hit]:
     search = Search(using=es, index=index)
 
@@ -40,6 +44,17 @@ def get_sample(
             "script",
             script={"id": label_filter_script_id, "params": {"labels": labels}},
         )
+
+    time_range = {}
+
+    if start is not None:
+        time_range["gte"] = start
+
+    if stop is not None:
+        time_range["lte"] = stop
+
+    if len(time_range) > 0:
+        search = search.filter(Range(**{"@timestamp": time_range}))
 
     if files is not None and len(files) > 0:
         search = search.filter(
@@ -63,12 +78,11 @@ def get_sample(
 
 def _get_closest(
     es: Elasticsearch,
-    path: str,
+    related: str,
     timestamp: Union[int, float, str],
-    index: Union[List[str], str, None] = None,
     scale: str = "5d",
 ) -> Optional[Hit]:
-    search = Search(using=es, index=index)
+    search = Search(using=es, index=related)
 
     search = search.query(
         "function_score",
@@ -76,8 +90,6 @@ def _get_closest(
         score_mode="multiply",
         boost_mode="multiply",
     )
-
-    search = search.filter("match", log__file__path=path)
 
     hits = (
         search.sort({"_score": "desc", "log.file.line": "asc"})
@@ -125,14 +137,16 @@ def get_sample_log(
     _related: List[Dict[str, Any]] = []
     if related is not None:
         for rel in related:
-            if rel != str(path):
-                closest: Optional[Hit] = _get_closest(
-                    es=es, index=index, path=rel, timestamp=sample["@timestamp"]
-                )
+            closest: Optional[Hit] = _get_closest(
+                es=es, related=rel, timestamp=sample["@timestamp"]
+            )
+            if closest is not None and closest.log.file.path != str(path):
                 if closest is not None:
                     _related.append(
                         {
-                            "path": str(Path(rel).relative_to(gather_dir)),
+                            "path": str(
+                                Path(closest.log.file.path).relative_to(gather_dir)
+                            ),
                             "line_no": closest.log.file.line,
                             "timestamp": closest["@timestamp"],
                         }
@@ -140,6 +154,9 @@ def get_sample_log(
 
     return {
         "label": label,
+        "rules": list(sample.kyoushi_labels.rules)
+        if "kyoushi_labels" in sample
+        else [],
         "path": str(path.relative_to(gather_dir)),
         "line_no": line_no,
         "before": before_lines,

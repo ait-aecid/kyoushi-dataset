@@ -43,6 +43,21 @@ from .utils import (
 )
 
 
+ISOTimestamp = click.DateTime(
+    [
+        "%Y-%m-%d",
+        "%Y-%m-%dT%H:%M:%S",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%dT%H:%M:%S.%f",
+        "%Y-%m-%d %H:%M:%S.%f",
+        "%Y-%m-%dT%H:%M:%S%z",
+        "%Y-%m-%dT%H:%M:%SZ",
+        "%Y-%m-%dT%H:%M:%S.%f%z",
+        "%Y-%m-%dT%H:%M:%S.%fZ",
+    ]
+)
+
+
 class Info:
     """An information object to pass data between CLI functions."""
 
@@ -132,12 +147,12 @@ def version(info: Info):
 )
 @click.option(
     "--start",
-    type=click.DateTime(),
+    type=ISOTimestamp,
     help="The the datasets observation start time (will be prompted if not supplied)",
 )
 @click.option(
     "--end",
-    type=click.DateTime(),
+    type=ISOTimestamp,
     help="The the datasets observation end time (will be prompted if not supplied)",
 )
 @click.option(
@@ -184,11 +199,11 @@ def prepare(
         ),
         start=start
         or click.prompt(
-            "Please enter the datasets observation start time", type=click.DateTime()
+            "Please enter the datasets observation start time", type=ISOTimestamp
         ),
         end=end
         or click.prompt(
-            "Please enter the datasets observation end time", type=click.DateTime()
+            "Please enter the datasets observation end time", type=ISOTimestamp
         ),
     )
     write_model_to_yaml(dataset_config, info.dataset_dir.joinpath(LAYOUT.CONFIG.value))
@@ -400,6 +415,18 @@ def _get_rule_files(directory: Path) -> List[Path]:
     help="The label to get sample log lines for (if this is not set then unlabeled log lines will be sampled)",
 )
 @click.option(
+    "--from-timestamp",
+    "from_timestamp",
+    type=ISOTimestamp,
+    help="Optional minium timestamp for log rows to consider",
+)
+@click.option(
+    "--until-timestamp",
+    "until_timestamp",
+    type=ISOTimestamp,
+    help="Optional maximum timestamp for log rows to consider",
+)
+@click.option(
     "--files",
     "-f",
     "files",
@@ -413,8 +440,9 @@ def _get_rule_files(directory: Path) -> List[Path]:
     "-r",
     "related",
     help=(
-        "Optionally a comma separated list of files for which to include the log line, "
-        "that is closest (based on the timestamp) to the selected sample, as meta information."
+        "Optionally a comma separated list of elasticsearch indices for which to include the log line, "
+        "that is closest (based on the timestamp) to the selected sample, as meta information. "
+        "Given indices are prefixed with the dataset name."
     ),
 )
 @click.option(
@@ -461,6 +489,8 @@ def sample(
     dataset_cfg_path: Path,
     label_object: str,
     label: Optional[str],
+    from_timestamp: Optional[datetime],
+    until_timestamp: Optional[datetime],
     files: Optional[str],
     related: Optional[str],
     default_label: str,
@@ -491,7 +521,11 @@ def sample(
 
         _label = [label] if label is not None else []
         _files = files.split(",") if files is not None else []
-        _related = related.split(",") if related is not None else []
+        _related = (
+            [f"{dataset_config.name}-{r}" for r in related.split(",")]
+            if related is not None
+            else []
+        )
 
         lines = get_sample(
             es,
@@ -503,17 +537,19 @@ def sample(
             size=size,
             seed=seed,
             seed_field=seed_field,
+            start=from_timestamp,
+            stop=until_timestamp,
         )
 
-        print(
-            json.dumps(
-                get_sample_log(
-                    es,
-                    lines[0],
-                    label if label is not None else default_label,
-                    info.dataset_dir.joinpath(LAYOUT.GATHER.value),
-                    related=_related,
-                    index=_index,
-                )
+        samples = [
+            get_sample_log(
+                es,
+                line,
+                label if label is not None else default_label,
+                info.dataset_dir.joinpath(LAYOUT.GATHER.value),
+                related=_related,
+                index=_index,
             )
-        )
+            for line in lines
+        ]
+        print(json.dumps(samples, indent=4))

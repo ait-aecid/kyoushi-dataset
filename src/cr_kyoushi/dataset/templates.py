@@ -1,6 +1,10 @@
 import functools
 import re
 
+from datetime import (
+    datetime,
+    timedelta,
+)
 from pathlib import Path
 from typing import (
     Any,
@@ -29,6 +33,7 @@ from jinja2 import (
     contextfunction,
 )
 from jinja2.nativetypes import NativeEnvironment
+from pydantic import parse_obj_as
 
 from .config import DatasetConfig
 from .utils import (
@@ -114,6 +119,10 @@ def get_context(c):
     return c
 
 
+def as_datetime(v: str) -> datetime:
+    return parse_obj_as(datetime, v)
+
+
 def create_environment(
     templates_dirs: Union[Text, Path, List[Union[Text, Path]]] = [
         Path("./templates"),
@@ -140,8 +149,14 @@ def create_environment(
         "regex_match": regex_match,
     }
 
+    custom_filters = {
+        "as_datetime": as_datetime,
+    }
+
     custom_globals = {
         "context": get_context,
+        "datetime": datetime,
+        "timedelta": timedelta,
     }
 
     if es is not None:
@@ -155,14 +170,15 @@ def create_environment(
         else:
             search_function = functools.partial(elastic_dsl_search, using=es)
             eql_function = functools.partial(elastic_eql_search, es=es)
-        custom_globals["Search"] = search_function  # type: ignore
+        custom_globals["Search"] = search_function
         custom_globals["Q"] = Q
-        custom_globals["Q_ALL"] = q_all  # type: ignore
-        custom_globals["Q_MATCH_ALL"] = functools.partial(q_all, "match")  # type: ignore
-        custom_globals["Q_TERM_ALL"] = functools.partial(q_all, "term")  # type: ignore
-        custom_globals["EQL"] = eql_function  # type: ignore
+        custom_globals["Q_ALL"] = q_all
+        custom_globals["Q_MATCH_ALL"] = functools.partial(q_all, "match")
+        custom_globals["Q_TERM_ALL"] = functools.partial(q_all, "term")
+        custom_globals["EQL"] = eql_function
 
     env.tests.update(custom_tests)
+    env.filters.update(custom_filters)
     env.globals.update(custom_globals)
 
     return env
@@ -188,6 +204,37 @@ def render_template(
     if isinstance(value, Undefined):
         value._fail_with_undefined_error()
     return value
+
+
+def render_template_recursive(
+    data: Any,
+    variables: Dict[str, Any],
+    es: Optional[Elasticsearch] = None,
+    dataset_config: Optional[DatasetConfig] = None,
+) -> Any:
+    # handle sub dicts
+    if isinstance(data, dict):
+        data_rendered = {}
+        for key, val in data.items():
+            # for sub dicts keys we also allow temp
+            key = render_template_recursive(key, variables, es, dataset_config)
+            val = render_template_recursive(val, variables, es, dataset_config)
+            data_rendered[key] = val
+        return data_rendered
+
+    # handle list elements
+    if isinstance(data, list):
+        return [
+            render_template_recursive(val, variables, es, dataset_config)
+            for val in data
+        ]
+
+    # handle str and template strings
+    if isinstance(data, str):
+        return render_template(data, variables, es, dataset_config)
+
+    # all other basic types are returned as is
+    return data
 
 
 def write_template(
