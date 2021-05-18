@@ -1,3 +1,4 @@
+import json
 import sys
 import warnings
 
@@ -37,6 +38,7 @@ from pydantic.error_wrappers import (
     ValidationError,
 )
 
+from . import LAYOUT
 from .config import DatasetConfig
 from .elasticsearch import (
     scan_composite,
@@ -943,6 +945,69 @@ class Labeler:
         }
         root.field(self.label_object, "object", properties=properties)
         es.indices.put_mapping(index=f"{dataset_name}-*", body=root.to_dict())
+
+    def _get_label_files(self, dataset_config: DatasetConfig, es: Elasticsearch):
+        # disable request cache to ensure we always get latest info
+        search_lines = Search(using=es, index=f"{dataset_config.name}-*").params(
+            request_cache=False
+        )
+
+        search_lines = search_lines.filter("exists", field=f"{self.label_object}.rules")
+
+        # setup aggregations
+        search_lines.aggs.bucket(
+            "files",
+            "composite",
+            sources=[{"path": {"terms": {"field": "log.file.path"}}}],
+        )
+
+        # use custom scan function to ensure we get all the buckets
+        return [h.key.path for h in scan_composite(search_lines, "files")]
+
+    def _write_file(self, search_labeled, label_file_path):
+        label_file_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(label_file_path, "w") as label_file:
+            for hit in search_labeled.scan():
+                labels: Dict[str, List[str]] = {}
+                for r in hit[self.label_object].rules:
+                    for label in hit[self.label_object].list[r]:
+                        rules = labels.setdefault(label, [])
+                        rules.append(r)
+
+                hit_info = {
+                    "line": hit.log.file.line,
+                    "labels": list(labels.keys()),
+                    "rules": labels,
+                }
+                if "multiline" in hit.log.file:
+                    hit_info["multiline"] = hit.log.file.multiline
+
+                label_file.write(f"{json.dumps(hit_info)}\n")
+
+    def write(
+        self, dataset_dir: Path, dataset_config: DatasetConfig, es: Elasticsearch
+    ):
+        files = self._get_label_files(dataset_config, es)
+
+        for current_file in files:
+            # disable request cache to ensure we always get latest info
+            search_labeled = Search(using=es, index=f"{dataset_config.name}-*").params(
+                request_cache=False, preserve_order=True
+            )
+            search_labeled = search_labeled.filter(
+                "exists", field=f"{self.label_object}.rules"
+            ).filter("term", log__file__path=current_file)
+
+            search_labeled = search_labeled.sort({"log.file.line": "asc"})
+
+            base_path = dataset_dir.joinpath(LAYOUT.GATHER.value)
+            label_path = dataset_dir.joinpath(LAYOUT.LABELS.value)
+
+            label_file_path = label_path.joinpath(
+                Path(current_file).relative_to(base_path)
+            )
+            print(f"Start writing {current_file}")
+            self._write_file(search_labeled, label_file_path)
 
     def execute(
         self,

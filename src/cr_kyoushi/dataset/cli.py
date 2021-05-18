@@ -326,6 +326,8 @@ def process(
     type=str,
     nargs=-1,
 )
+@click.option("--label/--no-label", default=True)
+@click.option("--write/--no-write", default=True)
 @pass_info
 @click.pass_context
 def label(
@@ -334,6 +336,8 @@ def label(
     dataset_cfg_path: Path,
     label_object: str,
     rule_dirs: List[str],
+    label: bool,
+    write: bool,
 ):
     """Apply the labeling rules to the dataset
 
@@ -378,7 +382,10 @@ def label(
     )
 
     try:
-        labeler.execute(rules, info.dataset_dir, dataset_config, es)
+        if label:
+            labeler.execute(rules, info.dataset_dir, dataset_config, es)
+        if write:
+            labeler.write(info.dataset_dir, dataset_config, es)
     except ValidationError as e:
         raise click.UsageError(f"Error while parsing the rules: {e}")
     except LabelException as e:
