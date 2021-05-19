@@ -326,8 +326,30 @@ def process(
     type=str,
     nargs=-1,
 )
-@click.option("--label/--no-label", default=True)
-@click.option("--write/--no-write", default=True)
+@click.option(
+    "--label/--no-label",
+    default=True,
+    help="If the labeling rules should be applied or not",
+)
+@click.option(
+    "--write/--no-write",
+    default=True,
+    help="If the label files should be written or not",
+)
+@click.option(
+    "--write-skip-files",
+    "skip_files",
+    help=(
+        "Optionally a comma separated list of log files to not write labels for."
+        "(if this is not set label files will be written for all files with labeled log lines)"
+    ),
+)
+@click.option(
+    "--write-exclude-index",
+    "-e",
+    "exclude",
+    help="Comma separated list of indices to explicitly exclude when writing label files",
+)
 @pass_info
 @click.pass_context
 def label(
@@ -338,6 +360,8 @@ def label(
     rule_dirs: List[str],
     label: bool,
     write: bool,
+    skip_files: str,
+    exclude: str,
 ):
     """Apply the labeling rules to the dataset
 
@@ -385,7 +409,15 @@ def label(
         if label:
             labeler.execute(rules, info.dataset_dir, dataset_config, es)
         if write:
-            labeler.write(info.dataset_dir, dataset_config, es)
+            write_index = [f"{dataset_config.name}-*"]
+            if exclude is not None:
+                write_index.extend(
+                    [f"-{dataset_config.name}-{i}" for i in exclude.split(",")]
+                )
+            _skip_files = skip_files.split(",") if skip_files is not None else []
+            labeler.write(
+                info.dataset_dir, dataset_config, es, write_index, _skip_files
+            )
     except ValidationError as e:
         raise click.UsageError(f"Error while parsing the rules: {e}")
     except LabelException as e:

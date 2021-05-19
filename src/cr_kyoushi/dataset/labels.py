@@ -946,11 +946,15 @@ class Labeler:
         root.field(self.label_object, "object", properties=properties)
         es.indices.put_mapping(index=f"{dataset_name}-*", body=root.to_dict())
 
-    def _get_label_files(self, dataset_config: DatasetConfig, es: Elasticsearch):
+    def _get_label_files(
+        self,
+        dataset_config: DatasetConfig,
+        es: Elasticsearch,
+        index: List[str],
+        skip_files: List[str],
+    ):
         # disable request cache to ensure we always get latest info
-        search_lines = Search(using=es, index=f"{dataset_config.name}-*").params(
-            request_cache=False
-        )
+        search_lines = Search(using=es, index=index).params(request_cache=False)
 
         search_lines = search_lines.filter("exists", field=f"{self.label_object}.rules")
 
@@ -962,7 +966,11 @@ class Labeler:
         )
 
         # use custom scan function to ensure we get all the buckets
-        return [h.key.path for h in scan_composite(search_lines, "files")]
+        return [
+            h.key.path
+            for h in scan_composite(search_lines, "files")
+            if h.key.path not in skip_files
+        ]
 
     def _write_file(self, search_labeled, label_file_path):
         label_file_path.parent.mkdir(parents=True, exist_ok=True)
@@ -985,9 +993,14 @@ class Labeler:
                 label_file.write(f"{json.dumps(hit_info)}\n")
 
     def write(
-        self, dataset_dir: Path, dataset_config: DatasetConfig, es: Elasticsearch
+        self,
+        dataset_dir: Path,
+        dataset_config: DatasetConfig,
+        es: Elasticsearch,
+        index: List[str],
+        skip_files: List[str],
     ):
-        files = self._get_label_files(dataset_config, es)
+        files = self._get_label_files(dataset_config, es, index, skip_files)
 
         for current_file in files:
             # disable request cache to ensure we always get latest info
