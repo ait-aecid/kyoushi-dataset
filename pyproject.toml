@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "cr-kyoushi-dataset"
-version = "0.0.0"
+version = "0.1.0"
 description = ""
 authors = ["Maximilian Frank <maximilian.frank@ait.ac.at>"]
 license = "MIT"
@@ -13,6 +13,16 @@ packages = [
 
 [tool.poetry.dependencies]
 python = "^3.7"
+pydantic = "^1.8.1"
+"ruamel.yaml" = "^0.17.2"
+Jinja2 = "^2.11.3"
+elasticsearch = "^7.12.0"
+elasticsearch-dsl = "^7.3.0"
+click = "^7.1.2"
+certifi = "^2020.12.5"
+pyshark = "^0.4.3"
+aiohttp = "^3.7.4"
+ujson = "^4.0.2"
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"
@@ -70,6 +80,9 @@ exclude = '''
   | tests/.*/setup.py
 )/
 '''
+
+[tool.poetry.scripts]
+cr-kyoushi-dataset = "cr_kyoushi.dataset.cli:cli"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

@@ -1,0 +1,9 @@
+# This file is where you define your pipelines. You can define multiple.
+# For more information on multiple pipelines, see the documentation:
+#   https://www.elastic.co/guide/en/logstash/current/multiple-pipelines.html
+
+- pipeline.id: main
+  path.config: "{{ PARSER.conf_dir }}"
+  pipeline.workers: 1
+  pipeline.ordered: true
+  pipeline.ecs_compatibility: v1

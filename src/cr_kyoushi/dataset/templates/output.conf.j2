@@ -1,0 +1,45 @@
+output {
+  if [@metadata][pipeline] {
+    # send to elasticsearch through ingest pipeline
+    elasticsearch {
+      hosts => ["{{ ELASTICSEARCH_HOST }}"]
+      ssl => {{ ELASTICSEARCH_SSL | tojson }}
+      index => "{{ DATASET.name }}-%{type}-%{[host][name]}"
+      template => "{{ PARSER.settings_dir.absolute().joinpath(DATASET.name+'-index-template.json') }}"
+      template_name => "{{ DATASET.name }}"
+      pipeline => "%{[@metadata][pipeline]}"
+{%- if ELASTICSEARCH_HOST_PATH is defined %}
+      path => "{{ ELASTICSEARCH_HOST_PATH }}"
+{%- endif %}
+{%- if ELASTICSEARCH_USER is defined %}
+      user => "{{ ELASTICSEARCH_USER }}"
+{%- endif %}
+{%- if ELASTICSEARCH_PASSWORD is defined %}
+      password => "{{ ELASTICSEARCH_PASSWORD }}"
+{%- endif %}
+    }
+  } else {
+    # send to elasticsearch directly
+    elasticsearch {
+      hosts => ["{{ ELASTICSEARCH_HOST }}"]
+      ssl => {{ ELASTICSEARCH_SSL | tojson }}
+      index => "{{ DATASET.name }}-%{type}-%{[host][name]}"
+      template => "{{ PARSER.settings_dir.absolute().joinpath(DATASET.name+'-index-template.json') }}"
+      template_name => "{{ DATASET.name }}"
+{%- if ELASTICSEARCH_HOST_PATH is defined %}
+      path => "{{ ELASTICSEARCH_HOST_PATH }}"
+{%- endif %}
+{%- if ELASTICSEARCH_USER is defined %}
+      user => "{{ ELASTICSEARCH_USER }}"
+{%- endif %}
+{%- if ELASTICSEARCH_PASSWORD is defined %}
+      password => "{{ ELASTICSEARCH_PASSWORD }}"
+{%- endif %}
+    }
+  }
+  if [@metadata][kyoushi][save_parsed] {
+    file {
+      path => "{{ PARSER.parsed_dir.absolute() }}/%{[host][name]}/%{[@metadata][file][relative_path]}"
+    }
+  }
+}
