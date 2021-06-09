@@ -2,7 +2,7 @@ site_name: Cyber Range Kyoushi Dataset
 site_url: ""
 
 site_description: IDS Dataset processing and labeling tool.
-strict: true
+strict: false
 
 theme:
   name: 'material'
