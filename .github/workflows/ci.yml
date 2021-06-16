@@ -21,6 +21,8 @@ jobs:
 
       - uses: Gr1N/setup-poetry@v4
       - run: poetry --version
+      - run: poetry config virtualenvs.in-project true 
+      - run: poetry install -v
       - run: make check-black
       - run: make check-flake8
       - run: make check-isort
