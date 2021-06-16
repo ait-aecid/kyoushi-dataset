@@ -1,0 +1,23 @@
+name: Test and Build
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v1
+        with:
+          python-version: 3.8
+
+      - uses: Gr1N/setup-poetry@v4
+      - run: poetry --version
