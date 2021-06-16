@@ -20,6 +20,10 @@ jobs:
           python-version: 3.7
 
       - uses: Gr1N/setup-poetry@v4
+      - uses: actions/cache@v2
+        with:
+          path: ~/.cache/pypoetry/virtualenvs
+          key: ${{ runner.os }}-poetry-${{ hashFiles('poetry.lock') }}
       - run: poetry --version
       - run: poetry config virtualenvs.in-project true 
       - run: poetry install -v
