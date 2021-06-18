@@ -29,6 +29,9 @@ jobs:
       - run: poetry config virtualenvs.in-project true 
       - run: poetry install -v
 
+      - name: Build Package
+        run: poetry build
+
       - name: Create Docs
         run: make docs
 
@@ -42,3 +45,6 @@ jobs:
           build_dir: public
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Publish Package
+        run: poetry publish -u whotwagner -p ${{ secrets.PYPITOKEN }}
