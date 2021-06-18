@@ -40,7 +40,7 @@ jobs:
         run: make test-junit
 
       - name: Install Python 3.8
-      - uses: actions/setup-python@v1
+        uses: actions/setup-python@v1
         with:
           python-version: 3.8
 
