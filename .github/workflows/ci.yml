@@ -15,12 +15,16 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-python@v1
+      - name: Install Python 3.7
+        uses: actions/setup-python@v1
         with:
           python-version: 3.7
 
-      - uses: Gr1N/setup-poetry@v4
-      - uses: actions/cache@v2
+      - name: Setup Poetry
+        uses: Gr1N/setup-poetry@v4
+
+      - name: Setup Cache
+        uses: actions/cache@v2
         with:
           path: ~/.cache/pypoetry/virtualenvs
           key: ${{ runner.os }}-poetry-${{ hashFiles('poetry.lock') }}
@@ -32,9 +36,14 @@ jobs:
       - run: make check-isort
       - run: make check-mypy
       - run: make check-safety
-      - run: make test-junit
+      - name: Run Unit-Tests with python3.7
+        run: make test-junit
+
+      - name: Install Python 3.8
       - uses: actions/setup-python@v1
         with:
           python-version: 3.8
-      - run: make test-junit
+
+      - name: Run Unit-Tests with python3.8
+        run: make test-junit
 
