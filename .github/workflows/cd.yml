@@ -1,10 +1,8 @@
 name: Deploy Pages and Modules
-
-on: [ pull_request ]
-# on:
-#   release:
-#     tags:
-#       - v*
+on:
+  release:
+    tags:
+      - v*
 
 jobs:
   test:
