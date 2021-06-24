@@ -1,8 +1,8 @@
 site_name: Cyber Range Kyoushi Dataset
-site_url: ""
+site_url: "https://ait-aecid.github.io/kyoushi-dataset"
 
 site_description: IDS Dataset processing and labeling tool.
-strict: false
+strict: true
 
 theme:
   name: 'material'
@@ -20,10 +20,10 @@ extra_javascript:
   - js/jquery-3.5.1.min.js
   - js/jquery.fancybox.min.js
 
-repo_name: kyoushi/dataset
-repo_url: https://git-service.ait.ac.at/sct-cyberrange/tools/kyoushi/dataset
+repo_name: kyoushi-dataset
+repo_url: https://github.com/ait-aecid/kyoushi-dataset
 # need to set manually since we use a private gitlab instance
-edit_uri: edit/master/docs/
+edit_uri: edit/main/docs/
 
 nav:
 - Overview: index.md

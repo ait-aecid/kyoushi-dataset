@@ -1,0 +1,46 @@
+name: Test and Quality
+
+on: [ pull_request ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Install Python 3.7
+        uses: actions/setup-python@v1
+        with:
+          python-version: 3.7
+
+      - name: Setup Poetry
+        uses: Gr1N/setup-poetry@v4
+
+      - name: Setup Cache
+        uses: actions/cache@v2
+        with:
+          path: ~/.cache/pypoetry/virtualenvs
+          key: ${{ runner.os }}-poetry-${{ hashFiles('poetry.lock') }}
+      - run: poetry --version
+      - run: poetry config virtualenvs.in-project true 
+      - run: poetry install -v
+      - run: make check-black
+      - run: make check-flake8
+      - run: make check-isort
+      - run: make check-mypy
+      - run: make check-safety
+      - name: Run Unit-Tests with python3.7
+        run: make test-junit
+
+      - name: Install Python 3.8
+        uses: actions/setup-python@v1
+        with:
+          python-version: 3.8
+
+      - name: Run Unit-Tests with python3.8
+        run: make test-junit
+
