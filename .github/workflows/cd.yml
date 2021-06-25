@@ -1,8 +1,7 @@
 name: Deploy Pages and Modules
 on:
   release:
-    tags:
-      - v*
+    types: [published]
 
 jobs:
   test:
