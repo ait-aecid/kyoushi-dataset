@@ -83,7 +83,7 @@ exclude = '''
 '''
 
 [tool.poetry.scripts]
-cr-kyoushi-dataset = "kyoushi.dataset.cli:cli"
+cr-kyoushi-dataset = "cr_kyoushi.dataset.cli:cli"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
