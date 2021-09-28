@@ -63,13 +63,13 @@ def search_eql(
     while result["is_running"]:
         result_id = result["id"]
         sleep(check_interval)
-        result = es.eql.get_status(result_id)
+        result = es.eql.get_status(id=result_id)
 
     # if result id is not none then we have a async request and have
     # to retrieve the actual result and delete the async data
     if result_id is not None:
-        result = es.eql.get(result_id)
+        result = es.eql.get(id=result_id)
         # delete the async request once we have its data
-        es.eql.delete(result_id)
+        es.eql.delete(id=result_id)
 
     return result["hits"]

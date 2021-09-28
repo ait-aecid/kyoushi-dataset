@@ -154,7 +154,9 @@ def create_kyoushi_scripts(
         }
     }
     es.put_script(
-        f"{dataset_name}_kyoushi_label_filter", body=filter_script, context="filter"
+        id=f"{dataset_name}_kyoushi_label_filter",
+        body=filter_script,
+        context="filter",
     )
 
     labels_field = {
@@ -165,7 +167,9 @@ def create_kyoushi_scripts(
     }
 
     es.put_script(
-        f"{dataset_name}_kyoushi_label_field", body=labels_field, context="field"
+        id=f"{dataset_name}_kyoushi_label_field",
+        body=labels_field,
+        context="field",
     )
 
 
