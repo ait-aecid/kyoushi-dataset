@@ -16,7 +16,7 @@ input {
         }
 {%- else %}
         codec => "{{ log.codec }}"
-{% endif %}
+{%- endif %}
 {%- if log.path is string %}
         path => "{{ DATASET_DIR.joinpath('gather',name,'logs', log.path) }}"
 {%- else %}
