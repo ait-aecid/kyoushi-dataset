@@ -11,7 +11,7 @@ input {
 {%- set _codec = log.codec.keys() | first %}
         codec => {{ _codec }} {
 {%- for _field,_value in log.codec[_codec].items() %}
-                "{{ _field }}" => {{ _value | tojson }}
+            "{{ _field }}" => {{ _value | tojson }}
 {%- endfor %}
         }
 {%- else %}
