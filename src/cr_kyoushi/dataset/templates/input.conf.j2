@@ -7,7 +7,16 @@ input {
 {%- if log.type is not none %}
         type => "{{ log.type }}"
 {%- endif %}
+{%- if log.codec is mapping %}
+{%- set _codec = log.codec.keys() | first %}
+        codec => {{ _codec }} {
+{%- for _field,_value in log.codec[_codec].items() %}
+                "{{ _field }}" => {{ _value | tojson }}
+{%- endfor %}
+        }
+{%- else %}
         codec => "{{ log.codec }}"
+{% endif %}
 {%- if log.path is string %}
         path => "{{ DATASET_DIR.joinpath('gather',name,'logs', log.path) }}"
 {%- else %}
