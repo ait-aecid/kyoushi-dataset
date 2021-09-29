@@ -123,7 +123,7 @@ class LogstashLogConfig(BaseModel):
         ...,
         description="The type to tag the log input with.",
     )
-    codec: str = Field(
+    codec: Union[str, Dict[str, Dict[str, Any]]] = Field(
         "plain",
         description="The file codec to use for reading.",
     )
