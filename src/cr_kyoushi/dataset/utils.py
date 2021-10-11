@@ -166,9 +166,8 @@ def remove_first_lines(path: Union[Text, Path], n: int, inclusive=False):
         # now start the iterator at our new first line
         for line in original:
             temp.write(line)
-        temp_path = Path(temp.name)
     # replace old file with new file
-    temp_path.replace(path)
+    shutil.move(temp.name, path)
 
 
 def truncate_file(path: Union[Text, Path], last_line: int):
