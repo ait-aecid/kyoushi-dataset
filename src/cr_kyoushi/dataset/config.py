@@ -1,3 +1,5 @@
+"""This module contains all configuration model definitions."""
+
 import sys
 
 from datetime import datetime
