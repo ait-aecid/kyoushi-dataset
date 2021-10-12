@@ -25,10 +25,6 @@ else:
     from typing_extensions import Literal
 
 
-class ObservationConfig(BaseModel):
-    pass
-
-
 class DatasetConfig(BaseModel):
     name: str = Field(
         ...,
