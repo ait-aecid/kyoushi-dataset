@@ -43,7 +43,10 @@ class DatasetConfig(BaseModel):
 
     name: str = Field(
         ...,
-        description="The name of the dataset. This is for example used as part of the elasticsearch index.",
+        description=(
+            "The name of the dataset. "
+            "This is for example used as part of the elasticsearch index."
+        ),
     )
     start: datetime = Field(
         ...,
@@ -75,7 +78,10 @@ class LogstashParserConfig(BaseModel):
 
     settings_dir: Path = Field(
         Path("processing/logstash"),
-        description="The logstash settings directory containing the logstash.yml (use for `path.settings`).",
+        description=(
+            "The logstash settings directory containing the logstash.yml "
+            "(use for `path.settings`)."
+        ),
     )
 
     conf_dir: Path = Field(
@@ -94,7 +100,10 @@ class LogstashParserConfig(BaseModel):
 
     completed_log: Path = Field(
         None,
-        description="The logstash file input completed log (defaults to <log_dir>/file-completed.log",
+        description=(
+            "The logstash file input completed log "
+            "(defaults to <log_dir>/file-completed.log"
+        ),
     )
 
     data_dir: Path = Field(
@@ -104,52 +113,58 @@ class LogstashParserConfig(BaseModel):
 
     parsed_dir: Path = Field(
         None,
-        description="The directory to save the parsed log files in, when save_parsed=true for any log. (defaults to <dataset>/parsed)",
+        description=(
+            "The directory to save the parsed log files in, "
+            "when save_parsed=true for any log. (defaults to <dataset>/parsed)"
+        ),
     )
 
     save_parsed: bool = Field(
         False,
-        description="If the log files should be saved to the disk after parsing. Is overridden by log.save_parsed.",
+        description=(
+            "If the log files should be saved to the disk after parsing. "
+            "Is overridden by log.save_parsed."
+        ),
     )
 
     @validator("completed_log", pre=True, always=True)
-    def default_completed_log(cls, v, *, values, **kwargs):
+    def default_completed_log(cls, val, *, values, **kwargs):
         """Validator for setting default completed_log
 
         Args:
-            v (Optional[Path]): The completed_log config value.
+            val (Optional[Path]): The completed_log config value.
             values (Dict[str, Any]): The model attribute dict.
 
         Returns:
             Path: The completed_log path.
         """
-        return v or values["log_dir"].joinpath("file-completed.log")
+        return val or values["log_dir"].joinpath("file-completed.log")
 
     @validator("conf_dir", pre=True, always=True)
-    def default_conf_dir(cls, v, *, values, **kwargs):
+    def default_conf_dir(cls, val, *, values, **kwargs):
         """Validator for setting default conf_dir
 
         Args:
-            v (Optional[Path]): The conf_dir config value.
+            val (Optional[Path]): The conf_dir config value.
             values (Dict[str, Any]): The model attribute dict.
 
         Returns:
             Path: The conf_dir path.
         """
-        return v or values["settings_dir"].joinpath("conf.d")
+        return val or values["settings_dir"].joinpath("conf.d")
 
     @validator("parsed_dir", pre=True, always=True)
-    def default_parsed_dir(cls, v, *, values, **kwargs):
+    def default_parsed_dir(cls, val, *, values, **kwargs):
         """Validator for setting default parsed_dir
 
         Args:
-            v (Optional[Path]): The parsed_dir config value.
+            val (Optional[Path]): The parsed_dir config value.
             values (Dict[str, Any]): The model attribute dict.
 
         Returns:
             Path: The parsed_dir path.
         """
-        return v or Path("parsed")
+        return val or Path("parsed")
 
 
 class ProcessingConfig(BaseModel):
@@ -165,7 +180,10 @@ class ProcessingConfig(BaseModel):
 
     pre_processors: List[Dict[str, Any]] = Field(
         [],
-        description="The processors to apply to the dataset before parsing and publishing the log data to elasticsearch.",
+        description=(
+            "The processors to apply to the dataset "
+            "before parsing and publishing the log data to elasticsearch."
+        ),
     )
     parser: LogstashParserConfig = Field(
         LogstashParserConfig(),
@@ -173,7 +191,10 @@ class ProcessingConfig(BaseModel):
     )
     post_processors: List[Dict[str, Any]] = Field(
         [],
-        description="The processors to apply to the dataset after parsing and publishing the log data to elasticsearch.",
+        description=(
+            "The processors to apply to the dataset after "
+            "parsing and publishing the log data to elasticsearch."
+        ),
     )
 
     @validator("pre_processors", "post_processors", each_item=True)
@@ -233,7 +254,10 @@ class LogstashLogConfig(BaseModel):
     )
     save_parsed: Optional[bool] = Field(
         None,
-        description="If this log should be saved to the disk after parsing. (Overrides parser.save_parsed)",
+        description=(
+            "If this log should be saved to the disk after parsing. "
+            "(Overrides parser.save_parsed)"
+        ),
     )
     exclude: Union[str, List[str]] = Field(
         [],
