@@ -26,6 +26,21 @@ else:
 
 
 class DatasetConfig(BaseModel):
+    """Configuration model for the dataset defintion.
+
+    This model controls the attributes of the dataset (e.g., name)
+    currently being processed. These configuration values are set
+    during the dataset preparation phase.
+
+    Example:
+        ```yaml
+        name: example-dataset
+        start: 2021-10-10T12:00
+        end: 2021-10-12T12:00
+        ```
+
+    """
+
     name: str = Field(
         ...,
         description="The name of the dataset. This is for example used as part of the elasticsearch index.",
@@ -41,6 +56,23 @@ class DatasetConfig(BaseModel):
 
 
 class LogstashParserConfig(BaseModel):
+    """Configuration model defining the logstash parser settings.
+
+    This is used to configure how logstash is used as dataset parser (e.g., log level)
+
+    Example:
+        ```yaml
+        settings_dir: processing/logstash
+        conf_dir: processing/logstash/conf.d
+        log_level: debug
+        log_dir: processing/logstash/log
+        completed_log: processing/logstash/log/file-completed.log
+        data_dir: processing/logstash/data
+        parsed_dir: parsed
+        save_parsed: false
+        ```
+    """
+
     settings_dir: Path = Field(
         Path("processing/logstash"),
         description="The logstash settings directory containing the logstash.yml (use for `path.settings`).",
@@ -82,18 +114,55 @@ class LogstashParserConfig(BaseModel):
 
     @validator("completed_log", pre=True, always=True)
     def default_completed_log(cls, v, *, values, **kwargs):
+        """Validator for setting default completed_log
+
+        Args:
+            v (Optional[Path]): The completed_log config value.
+            values (Dict[str, Any]): The model attribute dict.
+
+        Returns:
+            Path: The completed_log path.
+        """
         return v or values["log_dir"].joinpath("file-completed.log")
 
     @validator("conf_dir", pre=True, always=True)
     def default_conf_dir(cls, v, *, values, **kwargs):
+        """Validator for setting default conf_dir
+
+        Args:
+            v (Optional[Path]): The conf_dir config value.
+            values (Dict[str, Any]): The model attribute dict.
+
+        Returns:
+            Path: The conf_dir path.
+        """
         return v or values["settings_dir"].joinpath("conf.d")
 
     @validator("parsed_dir", pre=True, always=True)
     def default_parsed_dir(cls, v, *, values, **kwargs):
+        """Validator for setting default parsed_dir
+
+        Args:
+            v (Optional[Path]): The parsed_dir config value.
+            values (Dict[str, Any]): The model attribute dict.
+
+        Returns:
+            Path: The parsed_dir path.
+        """
         return v or Path("parsed")
 
 
 class ProcessingConfig(BaseModel):
+    """Configuration model for the processing pipeline.
+
+    The pipline configuration is split into the three steps
+     - pre-processing (`pre_processors`): List of Cyber Range Kyoushi processors
+                                          executed before parsing the dataset.
+     - parsing (`parser`): Logstash parser configuration.
+     - post-processing (`post_processors`): List of Cyber Range Kyoushi processors
+                                            executed after the dataset has been parsed.
+    """
+
     pre_processors: List[Dict[str, Any]] = Field(
         [],
         description="The processors to apply to the dataset before parsing and publishing the log data to elasticsearch.",
@@ -108,7 +177,15 @@ class ProcessingConfig(BaseModel):
     )
 
     @validator("pre_processors", "post_processors", each_item=True)
-    def check_processor_required_fields(cls, val):
+    def check_processor_required_fields(cls, val: Dict[str, Any]) -> Dict[str, Any]:
+        """Validator for ensuring that processors have `name` and `type` fields.
+
+        Args:
+            val: Processor configuration dict
+
+        Returns:
+            Validated processor configuration dict
+        """
         assert "name" in val, "A processor must have a name"
         assert (
             "type" in val
@@ -117,6 +194,31 @@ class ProcessingConfig(BaseModel):
 
 
 class LogstashLogConfig(BaseModel):
+    """Configuration model for to be parsed log files.
+
+    This model is used to create a Logstash `input` configuration
+    for raw dataset log files.
+
+    Example:
+        ```yaml
+        - type: kyoushi
+          codec: json
+          path: sm.log*
+          save_parse: false
+          exclude:
+           - *.gz
+           - *.zip
+          file_sort_direction: desc
+          file_chunk_size: 320000
+          delimiter: \n
+          tags:
+           - statemachine
+           - kyoushi
+          add_field:
+              '[@metadata][kyoushi][sm]': user
+
+    """
+
     type: str = Field(
         ...,
         description="The type to tag the log input with.",
