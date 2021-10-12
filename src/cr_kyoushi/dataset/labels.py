@@ -1,3 +1,5 @@
+"""This module contains labeling rule implementations and utility functions used during the labeling process"""
+
 import json
 import sys
 import warnings

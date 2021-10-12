@@ -1,3 +1,5 @@
+"""This module defines utility functions for working and converting PCAP files."""
+
 import io
 import re
 import subprocess

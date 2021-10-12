@@ -1,3 +1,9 @@
+"""
+This module contains the base definitions of dataset pipeline processors and also the core processors
+shipped with the Cyber Range Kyoushi Dataset package.
+"""
+
+
 import copy
 import gzip
 import shutil

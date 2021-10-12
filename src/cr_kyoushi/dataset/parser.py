@@ -1,3 +1,5 @@
+"""This module defines a python interface for using Logstash as a dataset parser."""
+
 import signal
 import subprocess
 

@@ -1,3 +1,5 @@
+"""This module contains general purpose utility functions."""
+
 import importlib.resources as pkg_resources
 import io
 import json

@@ -1,3 +1,8 @@
+"""
+This module contains utility functions used with and supporting template rendering
+as part of the processing pipeline and labeling rules.
+"""
+
 import functools
 import re
 

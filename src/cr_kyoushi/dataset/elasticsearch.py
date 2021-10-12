@@ -1,3 +1,5 @@
+"""This module contains Elasticsearch related utility functions"""
+
 from time import sleep
 from typing import (
     Any,

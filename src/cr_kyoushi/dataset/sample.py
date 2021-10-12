@@ -1,3 +1,5 @@
+"""This module contains utility functions used for sampling processed datasets."""
+
 from datetime import datetime
 from pathlib import Path
 from typing import (

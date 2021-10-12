@@ -1,3 +1,5 @@
+"""Cyber Range Kyoushi Dataset CLI module"""
+
 import json
 import os
 import shutil

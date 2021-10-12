@@ -1,3 +1,5 @@
+"""The main entry point for the Cyber Range Kyoushi Dataset CLI"""
+
 if __name__ == "__main__":
     import sys
 
