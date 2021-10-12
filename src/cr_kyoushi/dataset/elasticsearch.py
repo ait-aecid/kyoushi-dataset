@@ -77,9 +77,9 @@ def scan_composite(search: Search, name: str) -> List[Bucket]:
         if "after_key" not in result.aggregations[name]:
             # no after key indicates we got everything
             return buckets
-        else:
-            # resume query after the key
-            search.aggs[name].after = result.aggregations[name].after_key
+
+        # resume query after the key
+        search.aggs[name].after = result.aggregations[name].after_key
 
 
 def search_eql(
