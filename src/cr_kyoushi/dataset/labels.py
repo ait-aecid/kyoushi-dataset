@@ -138,6 +138,16 @@ def create_kyoushi_scripts(
     dataset_name: str,
     label_object: str = "kyoushi_labels",
 ):
+    """Utility function for creating labeling update, filter and field scripts.
+
+    Args:
+        es: The elasticsearch client object
+        dataset_name: The name of the dataset to create the scripts for.
+                      This is used as prefix for script names to ensure
+                      different versions of these scripts can exist for
+                      different datasets in the same Elasticsearch instance.
+        label_object: The name of field to store labeling information in.
+    """
     update_script = {
         "script": {
             "description": "Kyoushi Dataset - Update by Query label script",
@@ -181,6 +191,21 @@ def apply_labels_by_update_dsl(
     update_script_id: str,
     check_interval: float = 0.5,
 ) -> int:
+    """Utility function for applying labels based on a DSL query object.
+
+    The function takes a update by query object and uses the Cyber Range Kyoushi
+    label update script to apply the given labels to all matching rows. This
+    function is blocking as it waits for the process to complete.
+
+    Args:
+        update: The update by query object containing the DSL query.
+        script_params: The parameters for the label update script.
+        update_script_id: The label update script to use
+        check_interval: The amount in time between the status checks.
+
+    Returns:
+        The number of updated rows.
+    """
     # refresh=True is important so that consecutive rules
     # have a consitant state
     es: Elasticsearch = get_connection(update._using)
@@ -214,6 +239,19 @@ def apply_labels_by_query(
     index: Union[List[str], str] = "_all",
     check_interval: float = 0.5,
 ) -> int:
+    """Utility function for applying labels based on a DSL query.
+
+    Args:
+        es: The elasticsearch client object
+        query: The DSL query dict
+        script_params: The parameters for the label update script.
+        update_script_id: The label update script to use
+        index: The indices to query
+        check_interval: The amount in time between the status checks.
+
+    Returns:
+        The number of updated rows.
+    """
     update = UpdateByQuery(using=es, index=index)
     update = update.update_from_dict(query)
     return apply_labels_by_update_dsl(
@@ -226,6 +264,16 @@ def get_label_counts(
     index: Union[List[str], str, None] = None,
     label_object: str = "kyoushi_labels",
 ) -> List[Bucket]:
+    """Utility function for getting number of rows per label.
+
+    Args:
+        es: The elasticsearch client object
+        index: The indices to get the information for
+        label_object: The field containing the label information
+
+    Returns:
+        List of result buckets
+    """
     # disable request cache to ensure we always get latest info
     search_labels = Search(using=es, index=index).params(request_cache=False)
     runtime_mappings = {
@@ -249,15 +297,24 @@ def get_label_counts(
 
 
 class LabelException(Exception):
-    pass
+    """Generic exception for errors during labeling phase."""
 
 
 @runtime_checkable
 class Rule(Protocol):
+    """Interface definition for labeling rules."""
+
     type_: ClassVar[str]
+    """The unique rule type."""
+
     id_: str
+    """The rule id."""
+
     labels: List[str]
+    """List of labels to apply on rule match."""
+
     description: Optional[str]
+    """Free text description of the rule."""
 
     def apply(
         self,
@@ -267,13 +324,35 @@ class Rule(Protocol):
         update_script_id: str,
         label_object: str,
     ) -> int:
+        """Applies the configured rule and assigns the labels to all matching rows.
+
+        Args:
+            dataset_dir: The dataset base directory
+            dataset_config: The dataset configuration
+            es: The elasticsearch client object
+            update_script_id: The label update script ID
+            label_object: The field used to store label information
+
+        Returns:
+            The number of rows the rule was applied to
+        """
         ...
 
-    def update_params(self, label_object: str) -> Dict[str, Any]:
+    def update_params(self) -> Dict[str, Any]:
+        """Gets the update script parameters required for this rule.
+
+        Returns:
+            The update script parameters.
+        """
         ...
 
 
 class RuleBase(BaseModel):
+    """Pydantic base model for labeling rules.
+
+    This class can be extended to define custom labeling rules.
+    """
+
     type_: ClassVar[str] = Field(..., description="The rule type")
     type_field: str = Field(
         ...,
@@ -301,9 +380,28 @@ class RuleBase(BaseModel):
         update_script_id: str,
         label_object: str,
     ) -> int:
+        """Applies the configured rule and assigns the labels to all matching rows.
+
+        Args:
+            dataset_dir: The dataset base directory
+            dataset_config: The dataset configuration
+            es: The elasticsearch client object
+            update_script_id: The label update script ID
+            label_object: The field used to store label information
+
+        Returns:
+            The number of rows the rule was applied to
+        """
+
         raise NotImplementedError()
 
     def update_params(self) -> Dict[str, Any]:
+        """Gets the update script parameters required for this rule.
+
+        Returns:
+            The update script parameters.
+        """
+
         return {
             "rule": self.id_,
             "labels": self.labels,
@@ -311,12 +409,23 @@ class RuleBase(BaseModel):
 
     @validator("labels", each_item=True)
     def validate_label_no_semicolon(cls, val: str) -> str:
+        """Validator ensuring label names do not contain `;`.
+
+        Args:
+            val: A single label
+
+        Returns:
+            The validated label
+        """
         assert ";" not in val, f"Labels must not contain semicolons, but got '{val}'"
         return val
 
 
 class RuleList(BaseModel):
+    """Model definition of a list of labeling rules."""
+
     __root__: List[RuleBase]
+    """The root type"""
 
     def __iter__(self):
         return iter(self.__root__)
@@ -328,6 +437,14 @@ class RuleList(BaseModel):
     def check_rule_ids_uniq(
         cls, values: Dict[str, List[RuleBase]]
     ) -> Dict[str, List[RuleBase]]:
+        """Validator for ensuring that rule IDs are unique.
+
+        Args:
+            values: The model dictionary
+
+        Returns:
+            The validated model dictionary
+        """
         duplicates = set()
         temp = []
         if "__root__" in values:
@@ -343,6 +460,8 @@ class RuleList(BaseModel):
 
 
 class NoopRule(RuleBase):
+    """A noop rule that does absolutely nothing."""
+
     type_: ClassVar[str] = "noop"
 
     def apply(
@@ -353,10 +472,24 @@ class NoopRule(RuleBase):
         update_script_id: str,
         label_object: str,
     ) -> int:
+        """Applies the NoopRule i.e., does nothing.
+
+        Args:
+            dataset_dir: The dataset base directory
+            dataset_config: The dataset configuration
+            es: The elasticsearch client object
+            update_script_id: The label update script ID
+            label_object: The field used to store label information
+
+        Returns:
+            Always returns 0 since nothing happens.
+        """
         return 0
 
 
 class QueryBase(BaseModel):
+    """Base model for DSL query based labeling rules"""
+
     index: Optional[Union[List[str], str]] = Field(
         None,
         description="The indices to query (by default prefixed with the dataset name)",
@@ -388,6 +521,18 @@ class QueryBase(BaseModel):
     def validate_queries(
         cls, value: Union[List[Dict[str, Any]], Dict[str, Any]], values: Dict[str, Any]
     ) -> Union[List[Dict[str, Any]], Dict[str, Any]]:
+        """Validator checking DSL syntax
+
+        Args:
+            value: The DSL query
+            values: The model dictionary
+
+        Raises:
+            ValidationError: Should the given query be invalid
+
+        Returns:
+            The validated query
+        """
         # temporary update by query object used to validate the input queries
         _temp = UpdateByQuery()
         errors = []
@@ -406,6 +551,18 @@ class QueryBase(BaseModel):
     def validate_filter(
         cls, value: Union[List[Dict[str, Any]], Dict[str, Any]], values: Dict[str, Any]
     ) -> Union[List[Dict[str, Any]], Dict[str, Any]]:
+        """Validator to check the DSL query filter syntax
+
+        Args:
+            value: The DSL filter
+            values: The model dictionary
+
+        Raises:
+            ValidationError: Should the filter not be valid
+
+        Returns:
+            The validated filter
+        """
         # temporary update by query object used to validate the input filters
         _temp = UpdateByQuery()
         errors = []
@@ -424,6 +581,21 @@ class QueryBase(BaseModel):
     def validate_exclude(
         cls, value: Union[List[Dict[str, Any]], Dict[str, Any]], values: Dict[str, Any]
     ) -> Union[List[Dict[str, Any]], Dict[str, Any]]:
+        """Validator to check the DSL query exclude syntax
+
+        Exclude is simply a negative filter clause i.e.,
+        not (DSL QUERY).
+
+        Args:
+            value: The DSL exclude
+            values: The model dictionary
+
+        Raises:
+            ValidationError: Should the exclude not be valid
+
+        Returns:
+            The validated exclude
+        """
         # temporary update by query object used to validate the input excludes
         _temp = UpdateByQuery()
         errors = []
@@ -440,6 +612,33 @@ class QueryBase(BaseModel):
 
 
 class UpdateByQueryRule(RuleBase, QueryBase):
+    """Applies labels based on a simple Elasticsearch DSL query.
+
+    Example:
+        ```yaml
+        - type: elasticsearch.query
+          id: attacker.foothold.vpn.ip
+          labels:
+            - attacker_vpn
+            - foothold
+          description: >-
+            This rule applies the labels to all openvpn log rows that have
+            the attacker server as source ip and are within the foothold phase.
+          index:
+            - openvpn-vpn
+          filter:
+            range:
+            "@timestamp":
+                # foothold phase start
+                gte: "2021-03-23 20:31:00+00:00"
+                # foothold phase stop
+                lte: "2021-03-23 21:13:52+00:00"
+          query:
+            - match:
+                source.ip: '192.42.0.255'
+        ```
+    """
+
     type_: ClassVar[str] = "elasticsearch.query"
     index: Optional[Union[List[str], str]] = Field(
         None,
@@ -454,6 +653,18 @@ class UpdateByQueryRule(RuleBase, QueryBase):
         update_script_id: str,
         label_object: str,
     ) -> int:
+        """Applies the labels to all rows matching the DSL query.
+
+        Args:
+            dataset_dir: The dataset base directory
+            dataset_config: The dataset configuration
+            es: The elasticsearch client object
+            update_script_id: The label update script ID
+            label_object: The field used to store label information
+
+        Returns:
+            The number of rows the labels were applied to.
+        """
         index: Optional[Union[Sequence[str], str]] = resolve_indices(
             dataset_config.name, self.indices_prefix_dataset, self.index
         )
@@ -488,6 +699,15 @@ class UpdateByQueryRule(RuleBase, QueryBase):
 
 
 def render_query_base(hit: Hit, query: QueryBase) -> QueryBase:
+    """Utility function for rendering sub or parent query.
+
+    Args:
+        hit: The Elasticsearch query result row to render for.
+        query: The templated query definition.
+
+    Returns:
+        The rendered DSL query
+    """
     variables = {"HIT": hit}
 
     # render the index var
@@ -512,6 +732,71 @@ def render_query_base(hit: Hit, query: QueryBase) -> QueryBase:
 
 
 class UpdateSubQueryRule(RuleBase, QueryBase):
+    """Labeling rule that labels the results of multiple sub queries.
+
+    This labeling rule first executes a base query to retrieve information.
+    It then renders and executes a templated sub query for each row retrieved
+    from the base query. The result rows of these dynamically generated sub queries
+    are then labled.
+
+    !!! Note
+        The sub query uses Jinja2 syntax for templating. The information retrieved
+        by the base query can be accessed through the `HIT` variable.
+
+    Example:
+        ```yaml
+        - type: elasticsearch.sub_query
+          id: attacker.foothold.apache.access_dropped
+          labels:
+            - attacker_http
+            - foothold
+          description: >-
+            This rule tries to match attacker requests that we where unable to
+            match to a labeled response with access log entries. Such cases can
+            happen if the corresponding response gets lost in the network or
+            otherwise is not sent.
+          index:
+            - pcap-attacker_0
+          # obligatory match all
+          query:
+            - term:
+                destination.ip: "172.16.0.217"
+          filter:
+            - term:
+                event.category: http
+            - term:
+                event.action: request
+            # we are looking for requests that have not been marked as attacker http yet
+            # most likely they did not have a matching response due to some network error
+            # or timeout
+            - bool:
+                must_not:
+                - script:
+                    script:
+                        id: test_dataset_kyoushi_label_filter
+                        params:
+                        labels: [attacker_http]
+          sub_query:
+            index:
+              - apache_access-intranet_server
+            query:
+              - term:
+                  url.full: "{{ HIT.url.full }}"
+              - term:
+                  source.address: "172.16.100.151"
+            filter:
+              - range:
+                  "@timestamp":
+                    # the access log entry should be after the request, but since the access log
+                    # does not have microseconds we drop them here as well
+                    gte: "{{ (HIT['@timestamp'] | as_datetime).replace(microsecond=0) }}"
+                    # the type of error we are looking for should create an access log entry almost immediately
+                    # se we keep the time frame short
+                    lte: "{{ ( HIT['@timestamp'] | as_datetime).replace(microsecond=0) + timedelta(seconds=1) }}"
+        ```
+
+    """
+
     type_: ClassVar[str] = "elasticsearch.sub_query"
     index: Optional[Union[List[str], str]] = Field(
         None,
@@ -531,6 +816,18 @@ class UpdateSubQueryRule(RuleBase, QueryBase):
         update_script_id: str,
         label_object: str,
     ) -> int:
+        """Applies the labels to all rows matching the created sub queries.
+
+        Args:
+            dataset_dir: The dataset base directory
+            dataset_config: The dataset configuration
+            es: The elasticsearch client object
+            update_script_id: The label update script ID
+            label_object: The field used to store label information
+
+        Returns:
+            The number of rows the labels were applied to.
+        """
         index: Optional[Union[Sequence[str], str]] = resolve_indices(
             dataset_config.name, self.indices_prefix_dataset, self.index
         )
@@ -583,6 +880,73 @@ class UpdateSubQueryRule(RuleBase, QueryBase):
 
 
 class UpdateParentQueryRule(RuleBase, QueryBase):
+    """Applies the labels to all rows of a base query for which
+    a parent query returns results.
+
+    This labeling rule first executes a base query to retrieve rows we might want
+    to apply labels to. It then renders and executes a templated parent query
+    for each retrieved row. The parent queries are then used to indicate if
+    the initial result row should be labeled or not. By default result rows of the
+    base query are labeled if the corresponding parent query returns at leas *one*
+    row. It is possible to configure this minimum number e.g., to require at least
+    two results.
+
+    !!! Note
+        The sub query uses Jinja2 syntax for templating. The information retrieved
+        by the base query can be accessed through the `HIT` variable.
+
+    Example:
+        ```yaml
+        - type: elasticsearch.parent_query
+          id: attacker.foothold.apache.error_access
+          labels:
+            - attacker_http
+            - foothold
+          description: >-
+            This rule looks for unlabeled error messages resulting from VPN server
+            traffic within the attack time and tries to match it to an already labeled
+            access log row.
+          index:
+            - apache_error-intranet_server
+          query:
+            match:
+            source.address: "172.16.100.151"
+          filter:
+            # use script query to match only entries that
+            # are not already tagged for as attacker http in the foothold phase
+            - bool:
+                must_not:
+                - script:
+                    script:
+                        id: test_dataset_kyoushi_label_filter
+                        params:
+                        labels: [attacker_http]
+          parent_query:
+            index:
+              - apache_access-intranet_server
+            query:
+              - term:
+                  url.full: "{{ HIT.url.full }}"
+              - term:
+                  source.address: "{{ HIT.source.address }}"
+            # we are looking for parents that are labeled as attacker http
+              - bool:
+                  must:
+                    - script:
+                        script:
+                          id: test_dataset_kyoushi_label_filter
+                          params:
+                            labels: [attacker_http]
+            filter:
+              - range:
+                # parent must be within +-1s of potential child
+                  "@timestamp":
+                     gte: "{{ (HIT['@timestamp'] | as_datetime) - timedelta(seconds=1) }}"
+                     lte: "{{ ( HIT['@timestamp'] | as_datetime) + timedelta(seconds=1) }}"
+        ```
+
+    """
+
     type_: ClassVar[str] = "elasticsearch.parent_query"
     index: Optional[Union[List[str], str]] = Field(
         None,
@@ -611,6 +975,17 @@ class UpdateParentQueryRule(RuleBase, QueryBase):
         dataset_config: DatasetConfig,
         es: Elasticsearch,
     ) -> bool:
+        """Executes a parent query and returns if there were enough result rows.
+
+        Args:
+            parent_query: The parent query to execute
+            min_match: The minimum number of result rows required
+            dataset_config: The dataset configuration
+            es: The elasticsearch client object
+
+        Returns:
+            `True` if the query returned >= min_match rows and `False` otherwise.
+        """
         index: Optional[Union[Sequence[str], str]] = resolve_indices(
             dataset_config.name, parent_query.indices_prefix_dataset, parent_query.index
         )
@@ -645,6 +1020,18 @@ class UpdateParentQueryRule(RuleBase, QueryBase):
         update_script_id: str,
         label_object: str,
     ) -> int:
+        """Applies the labels to result from the base query for which a parent was found.
+
+        Args:
+            dataset_dir: The dataset base directory
+            dataset_config: The dataset configuration
+            es: The elasticsearch client object
+            update_script_id: The label update script ID
+            label_object: The field used to store label information
+
+        Returns:
+            The number of rows the labels were applied to.
+        """
         index: Optional[Union[Sequence[str], str]] = resolve_indices(
             dataset_config.name, self.indices_prefix_dataset, self.index
         )
@@ -705,6 +1092,8 @@ class UpdateParentQueryRule(RuleBase, QueryBase):
 
 
 class EqlQueryBase(BaseModel):
+    """Pydantic model representing an EQL query"""
+
     index: Optional[Union[List[str], str]] = Field(
         None,
         description="The indices to query (by default prefixed with the dataset name)",
@@ -769,6 +1158,11 @@ class EqlQueryBase(BaseModel):
     )
 
     def query(self) -> str:
+        """Converts the EQL query object into an EQL query string.
+
+        Returns:
+            The query in EQL syntax
+        """
         query = "sequence"
 
         if self.by is not None:
@@ -814,6 +1208,42 @@ class EqlQueryBase(BaseModel):
 
 
 class EqlSequenceRule(RuleBase, EqlQueryBase):
+    """Applies labels to a sequence of log events defined by an EQL query.
+
+    This labeling rule is defined as an
+    [EQL query](https://www.elastic.co/guide/en/elasticsearch/reference/master/eql.html).
+    Using this syntax it is possible to define a sequence of related events and retrieve
+    them. All events part of retrieved sequences are then labeled.
+
+    Example:
+        ```yaml
+        - type: elasticsearch.sequence
+          id: attacker.webshell.upload.seq
+          labels: [webshell_upload]
+          description: >-
+            This rule labels the web shell upload step by matching the 3 step sequence
+            within the foothold phase.
+          index:
+            - apache_access-intranet_server
+          # since we do these requests very fast
+          # we need the line number as tie breaker
+          tiebreaker_field: log.file.line
+          by: source.address
+          max_span: 2m
+          filter:
+            range:
+              "@timestamp":
+                # foothold phase start
+                gte: "2021-03-23 20:31:00+00:00"
+                # foothold phase stop
+                lte: "2021-03-23 21:13:52+00:00"
+          sequences:
+            - '[ apache where event.action == "access" and url.original == "/" ]'
+            - '[ apache where event.action == "access" and url.original == "/?p=5" ]'
+            - '[ apache where event.action == "access" and http.request.method == "POST" and url.original == "/wp-admin/admin-ajax.php" ]'
+        ```
+    """
+
     type_: ClassVar[str] = "elasticsearch.sequence"
 
     def _make_body(self, label_object: str):
@@ -862,6 +1292,18 @@ class EqlSequenceRule(RuleBase, EqlQueryBase):
         update_script_id: str,
         label_object: str,
     ) -> int:
+        """Applies the labels to all events part of retrieved sequences.
+
+        Args:
+            dataset_dir: The dataset base directory
+            dataset_config: The dataset configuration
+            es: The elasticsearch client object
+            update_script_id: The label update script ID
+            label_object: The field used to store label information
+
+        Returns:
+            The number of rows the labels were applied to.
+        """
         index: Optional[Union[Sequence[str], str]] = resolve_indices(
             dataset_config.name, self.indices_prefix_dataset, self.index
         )
@@ -906,12 +1348,24 @@ class EqlSequenceRule(RuleBase, EqlQueryBase):
 
 
 class Labeler:
+    """Cyber Range Kyoushi labeler
+
+    This class is used to configure and execute
+    the labeling process.
+    """
+
     def __init__(
         self,
         rule_types: Dict[str, Any] = {},
         update_script_id: str = "kyoushi_label_update",
         label_object: str = "kyoushi_labels",
     ):
+        """
+        Args:
+            rule_types : Dictionary containing all available labeling rule types.
+            update_script_id: The Elasticsearch ID for the update script.
+            label_object: The field to store labels in.
+        """
         self.rule_types: Dict[str, Any] = rule_types
         # default rule types
         self.rule_types.update(
@@ -932,6 +1386,13 @@ class Labeler:
         dataset_name: str,
         rules: List[Rule],
     ):
+        """Utility function for adding the field definitions for the label field.
+
+        Args:
+            es: The elasticsearch client object.
+            dataset_name: The name of the dataset.
+            rules: List of all to be applied rules.
+        """
         root = Mapping()
         flat = {}
         list_ = {}
@@ -958,7 +1419,18 @@ class Labeler:
         es: Elasticsearch,
         index: List[str],
         skip_files: List[str],
-    ):
+    ) -> List[str]:
+        """Get all dataset files containing rows that have been labled.
+
+        Args:
+            dataset_config: The dataset configuration.
+            es: The elasticsearch client object
+            index: The indices to consider
+            skip_files: Files to ignore
+
+        Returns:
+            List of files which contain at least one row with a label.
+        """
         # disable request cache to ensure we always get latest info
         search_lines = Search(using=es, index=index).params(request_cache=False)
 
@@ -978,7 +1450,13 @@ class Labeler:
             if h.key.path not in skip_files
         ]
 
-    def _write_file(self, search_labeled, label_file_path):
+    def _write_file(self, search_labeled: Search, label_file_path: Path):
+        """Utility function for writing label files.
+
+        Args:
+            search_labeled: Elasticsearch DSL search object used to retrieve labeled rows.
+            label_file_path: The path to write the label file to
+        """
         label_file_path.parent.mkdir(parents=True, exist_ok=True)
         with open(label_file_path, "w") as label_file:
             for hit in search_labeled.scan():
@@ -1006,6 +1484,15 @@ class Labeler:
         index: List[str],
         skip_files: List[str],
     ):
+        """Write labeles stored in the database to the file system.
+
+        Args:
+            dataset_dir: The dataset path
+            dataset_config: The dataset configuration
+            es: The elasticsearch client object
+            index: The indices to consider
+            skip_files: The files to ignore
+        """
         files = self._get_label_files(dataset_config, es, index, skip_files)
 
         for current_file in files:
@@ -1035,6 +1522,23 @@ class Labeler:
         dataset_config: DatasetConfig,
         es: Elasticsearch,
     ):
+        """Parse and apply all labeling rules.
+
+        !!! Note
+            This function only write labels to the database.
+            The resulting labels can be written to the file system
+            using the `write(...)` function of the labeler.
+
+        Args:
+            rules: The unparsed list of labeling rules.
+            dataset_dir: The dataset path
+            dataset_config: The dataset configuration
+            es: The elasticsearch client object
+
+        Raises:
+            ValidationError: If a labeling rule or configuration is invalid
+            LabelException: If an error occurs while applying a labeling rule
+        """
         # validate the general rule list
         RuleList.parse_obj(rules)
 
