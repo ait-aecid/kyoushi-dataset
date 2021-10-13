@@ -50,6 +50,20 @@ def __pcap_ecs_remove_filtered(el: Any, canary: object) -> Any:
 
 
 def pcap_ecs_remove_filtered(line: str) -> str:
+    """Removes any useless filtered keys from a `ek` JSON line.
+
+    Depending on the used display and read filters the tshark
+    conversion process adds `filtered` keys to fields that have
+    are beeing filter through read or display filters. These markers
+    do not add any value and even break the PCAP field mapping.
+    As such we check for them and remove any we find.
+
+    Args:
+        line: The `ek` JSON line
+
+    Returns:
+        The modified JSON line
+    """
     data = ujson.loads(line)
     # we need to re-add the line break that gets lost due to json load
     return ujson.dumps(__pcap_ecs_remove_filtered(data, object())) + "\n"
