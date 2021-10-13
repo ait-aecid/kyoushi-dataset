@@ -18,12 +18,20 @@ from .config import (
 
 
 class LogstashParser:
+    """Utility class for controling Logstash"""
+
     def __init__(
         self,
         dataset_config: DatasetConfig,
         parser_config: LogstashParserConfig,
         logstash: Path,
     ):
+        """
+        Args:
+            dataset_config: The dataset configuration
+            parser_config: The logstash configuration (e.g., CLI options etc.)
+            logstash: The path to the logstash executable
+        """
         self.dataset_config: DatasetConfig = dataset_config
         self.parser_config: LogstashParserConfig = parser_config
         self.logstash = logstash
@@ -33,6 +41,7 @@ class LogstashParser:
         ] = None
 
     def parse(self):
+        """Execute the parsing process by running logstash as sub process."""
         args = [
             str(self.logstash.absolute()),
             "--path.settings",
@@ -47,10 +56,20 @@ class LogstashParser:
         self.proc.wait()
 
     def _register_signal_handler(self):
+        """Register a signal handler to catch any SIGINT
+
+        Also saves the previous signal handle to restore
+        it later.
+        """
         self._sigint_handler = signal.getsignal(signal.SIGINT)
         signal.signal(signal.SIGINT, self._kill_child_process)
 
     def _kill_child_process(self, signum, frame):
+        """Handle SIGINT signals sent to the main process
+
+        On SIGINT we try to gracefully stop the logstash
+        sub process and then restore the previous signal handler.
+        """
         self.proc.kill()
         self.proc.wait()
         if self._sigint_handler is not None and not isinstance(
