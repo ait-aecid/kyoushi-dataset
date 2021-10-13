@@ -1,4 +1,7 @@
-"""This module contains labeling rule implementations and utility functions used during the labeling process"""
+"""
+This module contains labeling rule implementations and utility
+functions used during the labeling process
+"""
 
 import json
 import sys
@@ -497,11 +500,16 @@ class QueryBase(BaseModel):
 
     query: Union[List[Dict[str, Any]], Dict[str, Any]] = Field(
         ...,
-        description="The query/s to use for identifying log lines to apply the tags to.",
+        description=(
+            "The query/s to use for identifying log lines to apply the tags to."
+        ),
     )
     filter_: Optional[Union[List[Dict[str, Any]], Dict[str, Any]]] = Field(
         None,
-        description="The filter/s to limit queried to documents to only those that match the filters",
+        description=(
+            "The filter/s to limit queried to documents to "
+            "only those that match the filters"
+        ),
         alias="filter",
     )
     exclude: Optional[Union[List[Dict[str, Any]], Dict[str, Any]]] = Field(
@@ -513,7 +521,8 @@ class QueryBase(BaseModel):
         True,
         description=(
             "If set to true the `<DATASET.name>-` is automatically prefixed to each pattern. "
-            "This is a convenience setting as per default all dataset indices start with this prefix."
+            "This is a convenience setting as per default all dataset indices start "
+            "with this prefix."
         ),
     )
 
@@ -684,12 +693,12 @@ class UpdateByQueryRule(RuleBase, QueryBase):
             **{f"{label_object}.flat.{self.id_}": ";".join(self.labels)},
         )
 
-        for q in self.query:
-            update = update.query(q)
-        for f in self.filter_:
-            update = update.filter(f)
-        for e in self.exclude:
-            update = update.exclude(e)
+        for _query in self.query:
+            update = update.query(_query)
+        for _filter in self.filter_:
+            update = update.filter(_filter)
+        for _exclude in self.exclude:
+            update = update.exclude(_exclude)
 
         result = apply_labels_by_update_dsl(
             update, self.update_params(), update_script_id
@@ -724,9 +733,15 @@ def render_query_base(hit: Hit, query: QueryBase) -> QueryBase:
     if not isinstance(query.exclude, List):
         query.exclude = [query.exclude] if query.exclude is not None else []
 
-    query.query = [render_template_recursive(q, variables) for q in query.query]
-    query.filter_ = [render_template_recursive(f, variables) for f in query.filter_]
-    query.exclude = [render_template_recursive(e, variables) for e in query.exclude]
+    query.query = [
+        render_template_recursive(_query, variables) for _query in query.query
+    ]
+    query.filter_ = [
+        render_template_recursive(_filter, variables) for _filter in query.filter_
+    ]
+    query.exclude = [
+        render_template_recursive(_exclude, variables) for _exclude in query.exclude
+    ]
 
     return query
 
@@ -805,7 +820,10 @@ class UpdateSubQueryRule(RuleBase, QueryBase):
 
     sub_query: QueryBase = Field(
         ...,
-        description="The templated sub query to use to apply the labels. Executed for each hit of the parent query.",
+        description=(
+            "The templated sub query to use to apply the labels. "
+            "Executed for each hit of the parent query."
+        ),
     )
 
     def apply(
@@ -847,12 +865,12 @@ class UpdateSubQueryRule(RuleBase, QueryBase):
             **{f"{label_object}.flat.{self.id_}": ";".join(self.labels)},
         )
 
-        for q in self.query:
-            search = search.query(q)
-        for f in self.filter_:
-            search = search.filter(f)
-        for e in self.exclude:
-            search = search.exclude(e)
+        for _query in self.query:
+            search = search.query(_query)
+        for _filter in self.filter_:
+            search = search.filter(_filter)
+        for _exclude in self.exclude:
+            search = search.exclude(_exclude)
 
         result = 0
         for hit in search.scan():
@@ -1003,12 +1021,12 @@ class UpdateParentQueryRule(RuleBase, QueryBase):
                 [parent_query.exclude] if parent_query.exclude is not None else []
             )
 
-        for q in parent_query.query:
-            search = search.query(q)
-        for f in parent_query.filter_:
-            search = search.filter(f)
-        for e in parent_query.exclude:
-            search = search.exclude(e)
+        for _query in parent_query.query:
+            search = search.query(_query)
+        for _filter in parent_query.filter_:
+            search = search.filter(_filter)
+        for _exclude in parent_query.exclude:
+            search = search.exclude(_exclude)
 
         return search.execute().hits.total.value >= min_match
 
@@ -1051,12 +1069,12 @@ class UpdateParentQueryRule(RuleBase, QueryBase):
             **{f"{label_object}.flat.{self.id_}": ";".join(self.labels)},
         )
 
-        for q in self.query:
-            search = search.query(q)
-        for f in self.filter_:
-            search = search.filter(f)
-        for e in self.exclude:
-            search = search.exclude(e)
+        for _query in self.query:
+            search = search.query(_query)
+        for _filter in self.filter_:
+            search = search.filter(_filter)
+        for _exclude in self.exclude:
+            search = search.exclude(_exclude)
 
         result = 0
         update_map: Dict[str, List[str]] = {}
@@ -1105,12 +1123,18 @@ class EqlQueryBase(BaseModel):
 
     max_span: Optional[str] = Field(
         None,
-        description="Optional max time span in which a sequence must occur to be considered a match",
+        description=(
+            "Optional max time span in which a sequence "
+            "must occur to be considered a match"
+        ),
     )
 
     until: Optional[str] = Field(
         None,
-        description="Optional until event marking the end of valid sequences. The until event will not be labeled.",
+        description=(
+            "Optional until event marking the end of valid sequences. "
+            "The until event will not be labeled."
+        ),
     )
 
     sequences: List[str] = Field(
@@ -1120,7 +1144,10 @@ class EqlQueryBase(BaseModel):
 
     filter_: Optional[Union[List[Dict[str, Any]], Dict[str, Any]]] = Field(
         None,
-        description="The filter/s to limit queried to documents to only those that match the filters",
+        description=(
+            "The filter/s to limit queried to documents to "
+            "only those that match the filters"
+        ),
         alias="filter",
     )
 
@@ -1136,12 +1163,18 @@ class EqlQueryBase(BaseModel):
 
     tiebreaker_field: Optional[str] = Field(
         None,
-        description="(Optional, string) Field used to sort hits with the same timestamp in ascending order.",
+        description=(
+            "(Optional, string) Field used to sort hits with the "
+            "same timestamp in ascending order."
+        ),
     )
 
     batch_size: int = Field(
         1000,
-        description="The amount of sequences to update with each batch. Cannot be bigger than `max_result_window`",
+        description=(
+            "The amount of sequences to update with each batch. "
+            "Cannot be bigger than `max_result_window`"
+        ),
     )
 
     max_result_window: int = Field(
@@ -1153,7 +1186,8 @@ class EqlQueryBase(BaseModel):
         True,
         description=(
             "If set to true the `<DATASET.name>-` is automatically prefixed to each pattern. "
-            "This is a convenience setting as per default all dataset indices start with this prefix."
+            "This is a convenience setting as per default all dataset indices start "
+            "with this prefix."
         ),
     )
 
@@ -1261,8 +1295,8 @@ class EqlSequenceRule(RuleBase, EqlQueryBase):
             ],
         )
 
-        for f in self.filter_:
-            filter_ = filter_.query(f)
+        for _filter in self.filter_:
+            filter_ = filter_.query(_filter)
 
         # since we add our label exclusion we always have a query object in filter_
         filter_query = filter_.to_dict()["query"]
@@ -1461,10 +1495,10 @@ class Labeler:
         with open(label_file_path, "w") as label_file:
             for hit in search_labeled.scan():
                 labels: Dict[str, List[str]] = {}
-                for r in hit[self.label_object].rules:
-                    for label in hit[self.label_object].list[r]:
+                for rule in hit[self.label_object].rules:
+                    for label in hit[self.label_object].list[rule]:
                         rules = labels.setdefault(label, [])
-                        rules.append(r)
+                        rules.append(rule)
 
                 hit_info = {
                     "line": hit.log.file.line,
