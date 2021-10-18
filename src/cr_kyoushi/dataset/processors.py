@@ -1,6 +1,6 @@
 """
-This module contains the base definitions of dataset pipeline processors and also the core processors
-shipped with the Cyber Range Kyoushi Dataset package.
+This module contains the base definitions of dataset pipeline processors and also
+the core processors shipped with the Cyber Range Kyoushi Dataset package.
 """
 
 
@@ -72,6 +72,14 @@ else:
 
 
 class ProcessorContext(BaseModel):
+    """Processor context model
+
+    This model is used to configure the variable context
+    used for rendering a processor. It is possible to either
+    define variables directly (`variables`) or load them from
+    variable files (`variable_files`).
+    """
+
     variables: Dict[str, Any] = Field(
         {},
         description="Context variables to use during rendering",
@@ -87,6 +95,14 @@ class ProcessorContext(BaseModel):
     """The loaded context variables"""
 
     def load(self) -> Dict[str, Any]:
+        """Load the configured context variables into a combined dict.
+
+        The loaded context variables are cached so that variable files
+        are only read on the first call of `load()`.
+
+        Returns:
+            A single dict containing all context variables.
+        """
         if self._loaded_variables is None:
             self._loaded_variables = load_variables(self.variable_files)
             self._loaded_variables.update(self.variables)
@@ -97,6 +113,28 @@ class ProcessorContext(BaseModel):
 
 
 class Processor(Protocol):
+    """Cyber Range Kyoushi Dataset processor interface
+
+    For the Cyber Range Kyoushi Dataset tool processors are used
+    during the pre and post processing phase. A processor class exposes
+    configuration variables and is executed to achieve a certain task
+    during the processing phases. They work similar to Ansible modules
+    and it is possible to use Jinja2 templates and context
+    variable to define partial configuration.
+
+    Example:
+        ```yaml
+          - name: Render foo template
+            type: template
+            context:
+            vars:
+                foo: bar
+            var_files: gather/server/foo-bar.yaml
+            src: processing/templates/foo.yaml.j2
+            dest: processing/bar.yaml.j2
+        ```
+    """
+
     type_: ClassVar[str]
     context_render_exclude: ClassVar[List[str]]
     context: ProcessorContext
@@ -104,6 +142,15 @@ class Processor(Protocol):
 
     @classmethod
     def render(cls, context: ProcessorContext, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Renders all template strings of a processor.
+
+        Args:
+            context: The processors context variables
+            data: The raw templated processor configuration.
+
+        Returns:
+            The rendered processor configuration.
+        """
         ...
 
     def execute(
@@ -113,16 +160,40 @@ class Processor(Protocol):
         parser_config: LogstashParserConfig,
         es: Elasticsearch,
     ) -> None:
-        ...
+        """Executes the processor.
+
+        Args:
+            dataset_dir: The dataset path
+            dataset_config: The dataset configuration
+            parser_config: The dataset parser configuration
+            es: The elasticsearch client object
+        """
 
 
 @runtime_checkable
 class ProcessorContainer(Processor, Protocol):
+    """Cyber Range Kyoushi Dataset processor container interface
+
+    This interface definition defines the API used for
+    classes implementing processor container types.
+    """
+
     def processors(self) -> List[Dict[str, Any]]:
+        """Returns a list of processors contained in this container.
+
+        Returns:
+            List of processors
+        """
         ...
 
 
 class ProcessorBase(BaseModel):
+    """Pydantic base model of Cyber Range Kyoushi Dataset processor.
+
+    Use this base model to implement processors it ensures that
+    rendering and data loading is done correctly.
+    """
+
     type_: ClassVar[str] = Field(..., description="The processor type")
     context_render_exclude: ClassVar[List[str]] = []
     context: ProcessorContext = Field(
@@ -143,6 +214,16 @@ class ProcessorBase(BaseModel):
         data: Any,
         es: Elasticsearch,
     ) -> Any:
+        """Sub method used for the recursive processor rendering.
+
+        Args:
+            context: The processor context
+            data: The current data element
+            es: The elasticsearch client object
+
+        Returns:
+            The rendered data element
+        """
         # handle sub dicts
         if isinstance(data, dict):
             data_rendered = {}
@@ -171,6 +252,15 @@ class ProcessorBase(BaseModel):
         data: Dict[str, Any],
         es: Elasticsearch,
     ) -> Dict[str, Any]:
+        """Renders all template strings of a processor.
+
+        Args:
+            context: The processors context variables
+            data: The raw templated processor configuration.
+
+        Returns:
+            The rendered processor configuration.
+        """
         # handle main dict
         data_rendered = {}
         for key, val in data.items():
@@ -188,13 +278,56 @@ class ProcessorBase(BaseModel):
         parser_config: LogstashParserConfig,
         es: Elasticsearch,
     ):
+        """Executes the processor.
+
+        Args:
+            dataset_dir: The dataset path
+            dataset_config: The dataset configuration
+            parser_config: The dataset parser configuration
+            es: The elasticsearch client object
+        """
         raise NotImplementedError("Incomplete processor implementation!")
 
 
 ProcessorList = List[ProcessorBase]
+"""Type alias for a list of processors"""
 
 
 class ForEachProcessor(ProcessorBase):
+    """For each processor
+
+    This is a special processor container allowing for the
+    dynamic creation of a list of processor based on a list
+    of items.
+
+    Example:
+        ```yaml
+        - name: Render labeling rules
+          type: foreach
+          # processing/templates/rules
+          items:
+            - src: 0_auth.yaml.j2
+              dest: 0_auth.yaml
+            - src: apache.yaml.j2
+              dest: apache.yaml
+            - src: audit.yaml.j2
+              dest: audit.yaml
+            - src: openvpn.yaml.j2
+              dest: openvpn.yaml
+          processor:
+            type: template
+            name: Rendering labeling rule {{ item.src }}
+            template_context:
+              var_files:
+                attacker: processing/config/attacker/attacker.yaml
+                escalate: processing/config/attacker/escalate.yaml
+                foothold: processing/config/attacker/foothold.yaml
+                servers: processing/config/servers.yaml
+            src: "processing/templates/rules/{{ item.src }}"
+            dest: "rules/{{ item.dest }}"
+        ```
+    """
+
     type_: ClassVar = "foreach"
     context_render_exclude: ClassVar[List[str]] = ["processor"]
 
@@ -212,6 +345,12 @@ class ForEachProcessor(ProcessorBase):
     )
 
     def processors(self) -> List[Dict[str, Any]]:
+        """Create a list of processors for each item.
+
+        Returns:
+            List of processors based on the given items and
+            processor template.
+        """
         processors = []
         for item in self.items:
             processor = copy.deepcopy(self.processor)
@@ -228,8 +367,35 @@ class ForEachProcessor(ProcessorBase):
             processors.append(processor)
         return processors
 
+    def execute(
+        self,
+        dataset_dir: Path,
+        dataset_config: DatasetConfig,
+        parser_config: LogstashParserConfig,
+        es: Elasticsearch,
+    ):
+        """Executes the processor.
+
+        Args:
+            dataset_dir: The dataset path
+            dataset_config: The dataset configuration
+            parser_config: The dataset parser configuration
+            es: The elasticsearch client object
+        """
+        raise NotImplementedError("Incomplete processor implementation!")
+
 
 class PrintProcessor(ProcessorBase):
+    """Debug processor that simply prints a message.
+
+    Example:
+        ```yaml
+        - name: Print Hello World
+          type: print
+          msg: Hello World
+        ```
+    """
+
     type_: ClassVar = "print"
     msg: str = Field(..., description="The message to print")
 
@@ -240,17 +406,51 @@ class PrintProcessor(ProcessorBase):
         parser_config: LogstashParserConfig,
         es: Elasticsearch,
     ) -> None:
+        """Print the `msg`
+
+        Args:
+            dataset_dir: The dataset path
+            dataset_config: The dataset configuration
+            parser_config: The dataset parser configuration
+            es: The elasticsearch client object
+        """
         print(self.msg)
 
 
 class TemplateProcessor(ProcessorBase):
+    """Processor for rendering template files.
+
+    In addition to the normal processor context it
+    is also possible to define a `template_context`.
+    If `template_context` is defined it will be used for
+    rendering the template otherwise the normal processor
+    context will be used.
+
+    Example:
+        ```yaml
+        - type: template
+          name: Rendering labeling rule {{ item.src }}
+          template_context:
+            var_files:
+            attacker: processing/config/attacker/attacker.yaml
+            escalate: processing/config/attacker/escalate.yaml
+            foothold: processing/config/attacker/foothold.yaml
+            servers: processing/config/servers.yaml
+          src: "processing/templates/rules/{{ item.src }}"
+          dest: "rules/{{ item.dest }}"
+        ```
+    """
+
     type_: ClassVar = "template"
 
     src: Path = Field(..., description="The template file to render")
     dest: Path = Field(..., description="The destination to save the rendered file to")
     template_context: Optional[ProcessorContext] = Field(
         None,
-        description="Optional template context if this is not set the processor context is used instead",
+        description=(
+            "Optional template context if this is not set "
+            "the processor context is used instead"
+        ),
     )
 
     def execute(
@@ -260,6 +460,14 @@ class TemplateProcessor(ProcessorBase):
         parser_config: LogstashParserConfig,
         es: Elasticsearch,
     ) -> None:
+        """Load and render the template file.
+
+        Args:
+            dataset_dir: The dataset path
+            dataset_config: The dataset configuration
+            parser_config: The dataset parser configuration
+            es: The elasticsearch client object
+        """
         if self.template_context is not None:
             variables = self.template_context.load()
         else:
@@ -273,6 +481,16 @@ class TemplateProcessor(ProcessorBase):
 
 
 class CreateDirectoryProcessor(ProcessorBase):
+    """Processor for creating file directories.
+
+    Example:
+        ```yaml
+        - name: Ensure processing config directory exists
+          type: mkdir
+          path: processing/config
+        ```
+    """
+
     type_: ClassVar = "mkdir"
     path: Path = Field(..., description="The directory path to create")
     recursive: bool = Field(
@@ -286,10 +504,33 @@ class CreateDirectoryProcessor(ProcessorBase):
         parser_config: LogstashParserConfig,
         es: Elasticsearch,
     ) -> None:
+        """Execute the processor and create the directory.
+
+        Args:
+            dataset_dir: The dataset path
+            dataset_config: The dataset configuration
+            parser_config: The dataset parser configuration
+            es: The elasticsearch client object
+        """
         self.path.mkdir(parents=self.recursive, exist_ok=True)
 
 
 class GzipProcessor(ProcessorBase):
+    """Processor for decompressing gzip files.
+
+    It is possible to either define a `glob` of gzip files
+    or a `path` to a single gzip file. If a `glob` is defined
+    it is resolved relative to the defined `path` (default=<dataset dir>).
+
+    Example:
+        ```yaml
+        - name: Decompress all GZIP logs
+          type: gzip
+          path: gather
+          glob: "*/logs/**/*.gz"
+        ```
+    """
+
     type_: ClassVar = "gzip"
     path: Path = Field(
         Path("."),
@@ -304,6 +545,14 @@ class GzipProcessor(ProcessorBase):
         parser_config: LogstashParserConfig,
         es: Elasticsearch,
     ) -> None:
+        """Execute the processor and decompress the files.
+
+        Args:
+            dataset_dir: The dataset path
+            dataset_config: The dataset configuration
+            parser_config: The dataset parser configuration
+            es: The elasticsearch client object
+        """
         files: Iterable
         if self.glob is None:
             files = [self.path]
@@ -319,6 +568,22 @@ class GzipProcessor(ProcessorBase):
 
 
 class PcapElasticsearchProcessor(ProcessorBase):
+    """Processor for converting PCAP files to ndjson format.
+
+    This processor uses tshark to convert PCAP files to
+    a line based JSON format (`ek` output).
+
+    Example:
+        ```yaml
+        - name: Convert attacker pcap to elasticsearch json
+          type: pcap.elasticsearch
+          pcap: gather/attacker_0/logs/ait.aecid.attacker.wpdiscuz/traffic.pcap
+          dest: gather/attacker_0/logs/ait.aecid.attacker.wpdiscuz/traffic.json
+          tls_keylog: gather/attacker_0/logs/ait.aecid.attacker.wpdiscuz/premaster.txt
+          read_filter: "tcp or udp or icmp"
+        ```
+    """
+
     type_: ClassVar = "pcap.elasticsearch"
     pcap: FilePath = Field(..., description="The pcap file to convert")
     dest: Path = Field(..., description="The destination file")
@@ -346,22 +611,32 @@ class PcapElasticsearchProcessor(ProcessorBase):
     )
     packet_details: bool = Field(
         True,
-        description="If the packet details should be included, when packet_summary=False then details are always included (-V option).",
+        description=(
+            "If the packet details should be included, "
+            "when packet_summary=False then details are always included (-V option)."
+        ),
     )
     read_filter: Optional[str] = Field(
         None,
-        description="The read filter to use when reading the pcap file useful to reduce the number of packets (-Y option)",
+        description=(
+            "The read filter to use when reading the "
+            "pcap file useful to reduce the number of packets (-Y option)"
+        ),
     )
     protocol_match_filter: Optional[str] = Field(
         None,
         description=(
             "Display filter for protocols and their fields (-J option)."
-            "Parent and child nodes are included for all matches lower level protocols must be added explicitly."
+            "Parent and child nodes are included for all matches "
+            "lower level protocols must be added explicitly."
         ),
     )
     protocol_match_filter_parent: Optional[str] = Field(
         None,
-        description="Display filter for protocols and their fields. Only partent nodes are included (-j option).",
+        description=(
+            "Display filter for protocols and their fields. "
+            "Only partent nodes are included (-j option)."
+        ),
     )
 
     create_destination_dirs: bool = Field(
@@ -381,6 +656,14 @@ class PcapElasticsearchProcessor(ProcessorBase):
         parser_config: LogstashParserConfig,
         es: Elasticsearch,
     ) -> None:
+        """Execute the processor and convert the pcap file.
+
+        Args:
+            dataset_dir: The dataset path
+            dataset_config: The dataset configuration
+            parser_config: The dataset parser configuration
+            es: The elasticsearch client object
+        """
         if self.create_destination_dirs:
             # create destination parent directory if it does not exist
             self.dest.parent.mkdir(parents=True, exist_ok=True)
@@ -403,6 +686,22 @@ class PcapElasticsearchProcessor(ProcessorBase):
 
 
 class TemplateCreateProcessor(ProcessorBase):
+    """Processor for configuring Elasticsearch index templates.
+
+    This processor can be used to configure Elasticsearch
+    index templates. To prepare the Elasticsearch instance
+    for the parsing phase.
+
+    Example:
+        ```yaml
+        - name: Add pcap index mapping
+          type: elasticsearch.template
+          template: processing/logstash/pcap-index-template.json
+          template_name: pcap
+          index_patterns: ["pcap-*"]
+        ```
+    """
+
     type_: ClassVar = "elasticsearch.template"
     template: FilePath = Field(
         ..., description="The index template to add to elasticsearch"
@@ -420,8 +719,8 @@ class TemplateCreateProcessor(ProcessorBase):
     indices_prefix_dataset: bool = Field(
         True,
         description=(
-            "If set to true the `<DATASET.name>-` is automatically prefixed to each pattern. "
-            "This is a convenience setting as per default all dataset indices start with this prefix."
+            "If set to true the `<DATASET.name>-` is automatically prefixed to each pattern. This "
+            "is a convenience setting as per default all dataset indices start with this prefix."
         ),
     )
     order: int = Field(
@@ -441,6 +740,14 @@ class TemplateCreateProcessor(ProcessorBase):
         parser_config: LogstashParserConfig,
         es: Elasticsearch,
     ) -> None:
+        """Execute the processor and configure Elasticsearch index template.
+
+        Args:
+            dataset_dir: The dataset path
+            dataset_config: The dataset configuration
+            parser_config: The dataset parser configuration
+            es: The elasticsearch client object
+        """
         template_data = load_file(self.template)
 
         # configure the index patterns
@@ -464,6 +771,22 @@ class TemplateCreateProcessor(ProcessorBase):
 
 
 class IngestCreateProcessor(ProcessorBase):
+    """Processor for creating Elasticsearch ingest pipelines.
+
+    This processor can be used to create Elasticsearch ingest pipelines
+    for parsing log event. The log file parsing can then be configured
+    to use the pipelines for upstream parsing instead of local Logstash
+    parsing.
+
+    Example:
+        ```yaml
+        - name: Add auditd ingest pipeline to elasticsearch
+          type: elasticsearch.ingest
+          ingest_pipeline: processing/logstash/auditd-ingest.yml
+          ingest_pipeline_id: auditd-logs
+        ```
+    """
+
     type_: ClassVar = "elasticsearch.ingest"
     ingest_pipeline: FilePath = Field(
         ..., description="The ingest pipeline to add to elasticsearch"
@@ -479,6 +802,14 @@ class IngestCreateProcessor(ProcessorBase):
         parser_config: LogstashParserConfig,
         es: Elasticsearch,
     ) -> None:
+        """Execute the processor and configure Elasticsearch ingest pipeline.
+
+        Args:
+            dataset_dir: The dataset path
+            dataset_config: The dataset configuration
+            parser_config: The dataset parser configuration
+            es: The elasticsearch client object
+        """
         pipeline_data = load_file(self.ingest_pipeline)
 
         ies = IngestClient(es)
@@ -487,6 +818,29 @@ class IngestCreateProcessor(ProcessorBase):
 
 
 class LogstashSetupProcessor(ProcessorBase):
+    """Logstash parser setup processor.
+
+    This processor is used to create all the configuration
+    files required for the Logstash parser (e.g., input and filter configs).
+    Unless you provide a static Logstash parsing configuration you must
+    invoke this processor at somepoint during the pre-processing phase.
+
+    !!! Note
+        The processor only does the basic setup any Logstash parsing
+        filters used for processing specific log events must be prepared
+        separately.
+
+    Example:
+        ```yaml
+        - name: Setup logstash pipeline
+          type: logstash.setup
+          context:
+            var_files:
+              servers: processing/config/servers.yaml
+          servers: "{{ servers }}"
+        ```
+    """
+
     type_: ClassVar = "logstash.setup"
 
     input_config_name: str = Field(
@@ -501,7 +855,10 @@ class LogstashSetupProcessor(ProcessorBase):
 
     output_config_name: str = Field(
         "output.conf",
-        description="The name of the log outputs config file. (relative to the pipeline config dir)",
+        description=(
+            "The name of the log outputs config file. "
+            "(relative to the pipeline config dir)"
+        ),
     )
 
     output_template: Path = Field(
@@ -534,7 +891,10 @@ class LogstashSetupProcessor(ProcessorBase):
 
     index_template_template: Path = Field(
         Path("ecs-template.json.j2"),
-        description="The template to use for the elasticsearch dataset index patterns index template",
+        description=(
+            "The template to use for the elasticsearch "
+            "dataset index patterns index template"
+        ),
     )
 
     servers: Dict[str, Any] = Field(
@@ -543,13 +903,29 @@ class LogstashSetupProcessor(ProcessorBase):
     )
 
     @validator("servers", each_item=True)
-    def validate_servers(cls, v):
+    def validate_servers(cls, v: Dict[str, Any]) -> Dict[str, Any]:
+        """Validate the server logs configuration.
+
+        Args:
+            v: A single log configuration element
+
+        Returns:
+            The validated and parsed log configuration element
+        """
         assert "logs" in v, "Each server must have a logs configuration"
         v["logs"] = parse_obj_as(List[LogstashLogConfig], v["logs"])
         return v
 
     @validator("servers", each_item=True)
-    def default_server_timezone(cls, v):
+    def default_server_timezone(cls, v: Dict[str, Any]) -> Dict[str, Any]:
+        """Validate that each log config entry has a timezone or set default.
+
+        Args:
+            v: A single log configuration element
+
+        Returns:
+            The validated and parsed log configuration element
+        """
         if "timezone" not in v:
             v["timezone"] = "UTC"
         return v
@@ -561,6 +937,14 @@ class LogstashSetupProcessor(ProcessorBase):
         parser_config: LogstashParserConfig,
         es: Elasticsearch,
     ) -> None:
+        """Execute the processor and configure Logstash
+
+        Args:
+            dataset_dir: The dataset path
+            dataset_config: The dataset configuration
+            parser_config: The dataset parser configuration
+            es: The elasticsearch client object
+        """
 
         variables = self.context.load()
         variables.update(
@@ -648,6 +1032,29 @@ class LogstashSetupProcessor(ProcessorBase):
 
 
 class TrimProcessor(ProcessorBase):
+    """Processor for trimming log files to a defined time frame.
+
+    This processor can be used to remove all log lines outside
+    of defined dataset observation times.
+
+    !!! Note
+        Currently only support simple time frames with a single
+        start and end time.
+
+    Example:
+        ```yaml
+        - name: Trim server logs to observation time
+          type: dataset.trim
+          context:
+          var_files:
+            groups: processing/config/groups.yaml
+          # we only want to trim the logs of servers that will be part
+          # of the IDS dataset
+          indices:
+            - attacker_0-*
+        ```
+    """
+
     type_: ClassVar = "dataset.trim"
     start: Optional[datetime] = Field(
         None,
@@ -672,12 +1079,21 @@ class TrimProcessor(ProcessorBase):
     indices_prefix_dataset: bool = Field(
         True,
         description=(
-            "If set to true the `<DATASET.name>-` is automatically prefixed to each pattern. "
-            "This is a convenience setting as per default all dataset indices start with this prefix."
+            "If set to true the `<DATASET.name>-` is automatically prefixed to each pattern. This "
+            "is a convenience setting as per default all dataset indices start with this prefix."
         ),
     )
 
     def get_doc_stats(self, es: Elasticsearch, index: List[str]) -> List[Bucket]:
+        """Get a list of unique log file paths.
+
+        Args:
+            es: The elasticsearch client object
+            index: The indices to get the data for
+
+        Returns:
+            List of log file paths.
+        """
         # disable request cache to ensure we always get latest info
         search_lines = Search(using=es, index=index).params(request_cache=False)
 
@@ -692,6 +1108,15 @@ class TrimProcessor(ProcessorBase):
         return scan_composite(search_lines, "files")
 
     def get_line_stats(self, es: Elasticsearch, index: List[str]) -> List[Bucket]:
+        """Retrieve minimum and maximum line numbers for the log files.
+
+        Args:
+            es: The elasticsearch client object
+            index: The indices to get the stats for
+
+        Returns:
+            List of min and max line numbers per file
+        """
         # disable request cache to ensure we always get latest info
         search_lines = Search(using=es, index=index).params(request_cache=False)
 
@@ -713,6 +1138,14 @@ class TrimProcessor(ProcessorBase):
         parser_config: LogstashParserConfig,
         es: Elasticsearch,
     ) -> None:
+        """Execute the processor and trim the log files.
+
+        Args:
+            dataset_dir: The dataset path
+            dataset_config: The dataset configuration
+            parser_config: The dataset parser configuration
+            es: The elasticsearch client object
+        """
         if self.indices is None:
             # if not explicitly set use dataset root indices pattern
             indices = [f"{dataset_config.name}-*"]
@@ -810,7 +1243,21 @@ class TrimProcessor(ProcessorBase):
 
 
 class ProcessorPipeline:
-    def __init__(self, processor_map: Dict[str, Any] = {}):
+    """The Cyber Range Kyoushi Dataset processing pipeline implementation.
+
+    This class is used to configure, parse and execute the pre and post
+    processing steps.
+    """
+
+    def __init__(self, processor_map: Optional[Dict[str, Any]] = None):
+        """
+        Args:
+            processor_map: Dict of processors to execute
+        """
+
+        if processor_map is None:
+            processor_map = {}
+
         self.processor_map: Dict[str, Any] = processor_map
         self.processor_map.update(
             {
@@ -835,8 +1282,15 @@ class ProcessorPipeline:
         parser_config: LogstashParserConfig,
         es: Elasticsearch,
     ):
-        # reset in case we error during execution
-        self.__loaded = False
+        """Executes the processor pipeline by running all the configured processors.
+
+        Args:
+            data: The raw processor information
+            dataset_dir: The dataset path
+            dataset_config: The dataset configuration
+            parser_config: The dataset parser configuration
+            es: The elasticsearch client object
+        """
         # pre-validate the processor list
         # check if all processors have a name and type
         parse_obj_as(ProcessorList, data)
