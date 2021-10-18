@@ -520,7 +520,7 @@ class GzipProcessor(ProcessorBase):
 
     It is possible to either define a `glob` of gzip files
     or a `path` to a single gzip file. If a `glob` is defined
-    it is resolved relative to the defined `path` (default=<dataset dir>).
+    it is resolved relative to the defined `path` (default=`<dataset dir>`).
 
     Example:
         ```yaml

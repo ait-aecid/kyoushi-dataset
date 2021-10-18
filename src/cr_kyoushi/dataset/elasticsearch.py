@@ -28,6 +28,7 @@ def get_transport_variables(es: Elasticsearch) -> Dict[str, Any]:
 
     Returns:
         Host connection information dict containing the following fields:
+
           - `ELASTICSEARCH_HOST`: The host IP/FQDN and port
           - `ELASTICSEARCH_HOST_PATH`: The HTTP path if it is part of the full address
           - `ELASTICSEARCH_SSL`: Boolean indicating SSL on or off

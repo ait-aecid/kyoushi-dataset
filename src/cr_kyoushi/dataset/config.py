@@ -86,7 +86,7 @@ class LogstashParserConfig(BaseModel):
 
     conf_dir: Path = Field(
         None,
-        description="The path to the logstash pipeline config (defaults to <settings_dir>/conf.d)",
+        description="The path to the logstash pipeline config (defaults to `<settings_dir>/conf.d`)",
     )
 
     log_level: Optional[str] = Field(
@@ -102,7 +102,7 @@ class LogstashParserConfig(BaseModel):
         None,
         description=(
             "The logstash file input completed log "
-            "(defaults to <log_dir>/file-completed.log"
+            "(defaults to `<log_dir>/file-completed.log`"
         ),
     )
 
@@ -115,7 +115,7 @@ class LogstashParserConfig(BaseModel):
         None,
         description=(
             "The directory to save the parsed log files in, "
-            "when save_parsed=true for any log. (defaults to <dataset>/parsed)"
+            "when save_parsed=true for any log. (defaults to `<dataset>/parsed`)"
         ),
     )
 
@@ -128,12 +128,14 @@ class LogstashParserConfig(BaseModel):
     )
 
     @validator("completed_log", pre=True, always=True)
-    def default_completed_log(cls, val, *, values, **kwargs):
+    def default_completed_log(
+        cls, val: Optional[Path], *, values: Dict[str, Any], **kwargs
+    ) -> Path:
         """Validator for setting default completed_log
 
         Args:
-            val (Optional[Path]): The completed_log config value.
-            values (Dict[str, Any]): The model attribute dict.
+            val: The completed_log config value.
+            values: The model attribute dict.
 
         Returns:
             Path: The completed_log path.
@@ -141,12 +143,14 @@ class LogstashParserConfig(BaseModel):
         return val or values["log_dir"].joinpath("file-completed.log")
 
     @validator("conf_dir", pre=True, always=True)
-    def default_conf_dir(cls, val, *, values, **kwargs):
+    def default_conf_dir(
+        cls, val: Optional[Path], *, values: Dict[str, Any], **kwargs
+    ) -> Path:
         """Validator for setting default conf_dir
 
         Args:
-            val (Optional[Path]): The conf_dir config value.
-            values (Dict[str, Any]): The model attribute dict.
+            val: The conf_dir config value.
+            values: The model attribute dict.
 
         Returns:
             Path: The conf_dir path.
@@ -154,12 +158,14 @@ class LogstashParserConfig(BaseModel):
         return val or values["settings_dir"].joinpath("conf.d")
 
     @validator("parsed_dir", pre=True, always=True)
-    def default_parsed_dir(cls, val, *, values, **kwargs):
+    def default_parsed_dir(
+        cls, val: Optional[Path], *, values: Dict[str, Any], **kwargs
+    ) -> Path:
         """Validator for setting default parsed_dir
 
         Args:
-            val (Optional[Path]): The parsed_dir config value.
-            values (Dict[str, Any]): The model attribute dict.
+            val: The parsed_dir config value.
+            values: The model attribute dict.
 
         Returns:
             Path: The parsed_dir path.
@@ -237,7 +243,7 @@ class LogstashLogConfig(BaseModel):
            - kyoushi
           add_field:
               '[@metadata][kyoushi][sm]': user
-
+        ```
     """
 
     type: str = Field(

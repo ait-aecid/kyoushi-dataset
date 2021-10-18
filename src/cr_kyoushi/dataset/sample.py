@@ -35,7 +35,7 @@ def get_sample(
         es: The elasticsearch client object
         label_filter_script_id: The kyoushi filter scripts ID
         labels: The labels to sample from
-        file: The log files to sample from
+        files: The log files to sample from
         index: The elasticsearch indices to sample from
         label_object: The field that contains the labeling data
         size: The number of lines to sample
