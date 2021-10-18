@@ -27,6 +27,8 @@ edit_uri: edit/main/docs/
 
 nav:
 - Overview: index.md
+- Usage:
+    - CLI Reference: usage/cli.md
 - Code Reference:
     - Config: reference/config.md
     - Elasticsearch: reference/elasticsearch.md
