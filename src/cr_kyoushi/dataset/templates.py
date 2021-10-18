@@ -38,6 +38,7 @@ from jinja2 import (
     contextfunction,
 )
 from jinja2.nativetypes import NativeEnvironment
+from jinja2.runtime import Context
 from pydantic import parse_obj_as
 
 from .config import DatasetConfig
@@ -47,13 +48,29 @@ from .utils import (
 )
 
 
-def regex(value="", pattern="", ignorecase=False, multiline=False, match_type="search"):
+def regex(
+    value: str = "",
+    pattern: str = "",
+    ignorecase: bool = False,
+    multiline: bool = False,
+    match_type: str = "search",
+) -> bool:
     """Expose `re` as a boolean filter using the `search` method by default.
     This is likely only useful for `search` and `match` which already
     have their own filters.
 
     !!! Note
         Taken from Ansible
+
+    Args:
+        value: The string to search in
+        pattern: The pattern to search
+        ignorecase: If the case should be ignored or not
+        multiline: If multiline matching should be used or not
+        match_type: The re pattern match type to use
+
+    Returns:
+        `True` if a match was found `False` otherwise.
     """
     flags = 0
     if ignorecase:
@@ -64,25 +81,56 @@ def regex(value="", pattern="", ignorecase=False, multiline=False, match_type="s
     return bool(getattr(_re, match_type, "search")(value))
 
 
-def regex_match(value, pattern="", ignorecase=False, multiline=False):
+def regex_match(
+    value: str, pattern: str = "", ignorecase: bool = False, multiline: bool = False
+) -> bool:
     """Perform a `re.match` returning a boolean
 
     !!! Note
         Taken from Ansible
+
+    Args:
+        value: The string to search in
+        pattern: The pattern to search
+        ignorecase: If the case should be ignored or not
+        multiline: If multiline matching should be used or not
+
+    Returns:
+        `True` if a match was found `False` otherwise.
     """
     return regex(value, pattern, ignorecase, multiline, "match")
 
 
-def regex_search(value, pattern="", ignorecase=False, multiline=False):
+def regex_search(
+    value: str, pattern: str = "", ignorecase: bool = False, multiline: bool = False
+) -> bool:
     """Perform a `re.search` returning a boolean
 
     !!! Note
         Taken from Ansible
+
+    Args:
+        value: The string to search in
+        pattern: The pattern to search
+        ignorecase: If the case should be ignored or not
+        multiline: If multiline matching should be used or not
+
+    Returns:
+        `True` if a match was found `False` otherwise.
     """
     return regex(value, pattern, ignorecase, multiline, "search")
 
 
 def match_any(value: str, regex_list: List[str]) -> bool:
+    """Perform multiple `re.match` and return `True` if at least on match is found.
+
+    Args:
+        value: The string to search in
+        regex_list: Lis tof patterns to try matching
+
+    Returns:
+        `True` if at least one pattern matches `False` otherwise
+    """
     return any(re.match(regex, value) for regex in regex_list)
 
 
@@ -93,11 +141,30 @@ def elastic_dsl_search(
     index: Optional[Union[Sequence[str], str]] = None,
     **kwargs,
 ) -> Search:
+    """Create an Elasticsearch DSL search object.
+
+    Args:
+        using: The elasticsearch client object
+        dataset_name: The dataset name
+        prefix_dataset_name: If the dataset name should be prefixed to the indices or not
+        index: The indices to create the search object for
+
+    Returns:
+        Configured elasticsearch DSL search object
+    """
     _index = resolve_indices(dataset_name, prefix_dataset_name, index)
     return Search(using=using, index=_index, **kwargs)
 
 
 def q_all(qry_type: str, **kwargs) -> Q:
+    """Create elasticsearch DSL bool term requiring all given terms to be true.
+
+    Args:
+        qry_type: The DSL query term type
+
+    Returns:
+        The configured DSL query term
+    """
     must = []
     for key, val in kwargs.items():
         if isinstance(val, Query):
@@ -113,29 +180,71 @@ def elastic_eql_search(
     dataset_name: Optional[str] = None,
     prefix_dataset_name: bool = True,
     index: Optional[Union[Sequence[str], str]] = None,
-):
+) -> Dict[str, Any]:
+    """Perform an Elasticsearch EQL query.
+
+    Args:
+        es: The elasticsearch client object
+        body: The EQL query body
+        dataset_name: The dataset name
+        prefix_dataset_name: If the dataset name should be prefixed to the indices or not
+        index: The indices to perform the query on.
+
+    Returns:
+        The EQL query result
+    """
     _index = resolve_indices(dataset_name, prefix_dataset_name, index)
     eql = EqlClient(es)
     return eql.search(index=_index, body=body)
 
 
 @contextfunction
-def get_context(c):
+def get_context(c: Context) -> Context:
+    """Utility function for getting the Jinja2 context.
+
+    Args:
+        c: The Jinja2 context
+
+    Returns:
+        The Jinja2 context
+    """
     return c
 
 
 def as_datetime(v: str) -> datetime:
+    """Utility filter for converting a string to datetime.
+
+    Args:
+        v: The string to convert
+
+    Returns:
+        Converted datetime object.
+    """
     return parse_obj_as(datetime, v)
 
 
 def create_environment(
-    templates_dirs: Union[Text, Path, List[Union[Text, Path]]] = [
-        Path("./templates"),
-        Path("./"),
-    ],
+    templates_dirs: Optional[Union[Text, Path, List[Union[Text, Path]]]] = None,
     es: Optional[Elasticsearch] = None,
     dataset_config: Optional[DatasetConfig] = None,
 ) -> NativeEnvironment:
+    """Create Jinja2 native environment for rendering dataset templates.
+
+    Args:
+        templates_dirs: The template directories
+        es: The elasticsearch client object
+        dataset_config: The dataset configuration
+
+    Returns:
+        Jinja2 template environment
+    """
+
+    if templates_dirs is None:
+        templates_dirs = [
+            Path("./templates"),
+            Path("./"),
+        ]
+
     env_loader = ChoiceLoader(
         [
             FileSystemLoader(templates_dirs),
@@ -195,6 +304,17 @@ def render_template(
     es: Optional[Elasticsearch] = None,
     dataset_config: Optional[DatasetConfig] = None,
 ) -> Any:
+    """Renders a dataset Jinja2 template string or file.
+
+    Args:
+        template: The template string or file
+        variables: The context variables to use for rendering
+        es: The elasticsearch client object
+        dataset_config: The dataset configuration
+
+    Returns:
+        The rendered Jinja2 template
+    """
     # get jinja2 environment
     env = create_environment(es=es, dataset_config=dataset_config)
 
@@ -217,6 +337,22 @@ def render_template_recursive(
     es: Optional[Elasticsearch] = None,
     dataset_config: Optional[DatasetConfig] = None,
 ) -> Any:
+    """Renders a complex object containing Jinja2 templates
+
+    The complex object can be either a string, list or dictionary.
+    This function will recurse all sub elements (e.g., dictionary values)
+    and render any Jinja2 template strings it finds.
+
+    Args:
+        data: The object to render
+        variables: The context variables to use for rendering
+        es: The elasticsearch client object
+        dataset_config: The dataset configuration
+
+    Returns:
+        The object with all its Jinja2 templates rendered.
+    """
+
     # handle sub dicts
     if isinstance(data, dict):
         data_rendered = {}
@@ -249,6 +385,15 @@ def write_template(
     es: Optional[Elasticsearch] = None,
     dataset_config: Optional[DatasetConfig] = None,
 ):
+    """Render and write a dataset Jinja2 template file.
+
+    Args:
+        src: The template source
+        dest: The file to write the rendered string to
+        variables: The variable context to use for rendering
+        es: The elasticsearch client object
+        dataset_config: The dataset configuration
+    """
     template_rendered = render_template(src, variables, es, dataset_config)
     if (
         # mappings are converted to json or yaml
