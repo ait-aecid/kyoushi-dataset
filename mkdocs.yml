@@ -33,6 +33,8 @@ nav:
     - Process Dataset: getting_started/process.md
     - Label Dataset: getting_started/label.md
     - Sample Labels: getting_started/sample.md
+- Examples:
+  - Dataset Processing: examples/process.md
 - Dataset Processors: processors.md
 - Labeling Rules: rules.md
 - CLI Reference: cli.md
