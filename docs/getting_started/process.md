@@ -53,6 +53,7 @@ Every `processor` has at least the following basic configuration fields in addit
 
 ### Parser Config
 
+The parser configuration is used to configure how the Logstash parser is executed. That is you can use it to define some of the command line arguments used to run Logstash. The more complex configuration options, such as, [Logstash filter](https://www.elastic.co/guide/en/logstash/current/filter-plugins.html) configurations must be done through normal Logstash configuration syntax. By default Logstash will use the `<dataset>/processing/logstash` directory as its main directory for storing both configuration files and runtime data (e.g., log files), but this behavior can be change by setting the appropriate parser options. See the [`Logstash Parser Configuration Model`][cr_kyoushi.dataset.config.LogstashParserConfig] for details on the available options.
 
 ### Example Config
 
@@ -115,10 +116,87 @@ post_processors:
 
 ## Parsing
 
+Below we will give a brief introduction on how to configure the way raw log data is parsed into structured data. As the *Cyber Range Kyoushi Dataset* tool uses Logstash as its parsing component and Elasticsearch for storage we recommend to consult the [Logstash](https://www.elastic.co/guide/en/logstash/current/index.html) and [Elasticsearch](https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html) documentation for more extensive explanations of available features and configurations.
+
+The *Cyber Range Kyoushi Dataset* tool basically supports two ways of configuring and processing log dissection. Either [Logstash filters](https://www.elastic.co/guide/en/logstash/current/filter-plugins.html) processed by Logstash or using [Elasticsearch ingest pipelines
+](https://www.elastic.co/guide/en/elasticsearch/reference/current/ingest.html).
 ### Logstash Filters
 
-### Index Templates
+[Logstash filters](https://www.elastic.co/guide/en/logstash/current/filter-plugins.html) can be used to parse log data directly with Logstash. See the Logstash documentation for an overview of available filters. Filters must be configured in Logstash conf files (default conf dir `<dataset>/processing/logstash/conf.d/`) in so called `filter` blocks. The below example shows a [`grok`](https://www.elastic.co/guide/en/logstash/current/plugins-filters-grok.html) filter used to dissect OpenVPN logs.
+
+```ruby
+filter {
+  grok {
+    match => {
+      "message" => [
+        "%{OPENVPN_BASE} peer info: %{OPENVPN_PEER_INFO}",
+        "%{OPENVPN_BASE} VERIFY EKU %{GREEDYDATA:[openvpn][verify][eku][status]}",
+        "%{OPENVPN_BASE} VERIFY KU %{GREEDYDATA:[openvpn][verify][ku][status]}",
+        "%{OPENVPN_BASE} VERIFY %{DATA:[openvpn][verify][status]}: depth=%{NONNEGINT:[openvpn][verify][depth]:int}, %{GREEDYDATA:[openvpn][peer][cert][info]}",
+        "%{OPENVPN_BASE} (?<message>MULTI: Learn: %{IP:[destination][ip]} -> %{OPENVPN_USER}/%{OPENVPN_CONNECTION})",
+        "%{OPENVPN_BASE} (?<message>MULTI: primary virtual IP for %{OPENVPN_USER}/%{OPENVPN_CONNECTION}: %{IP:[destination][ip]})",
+        "%{OPENVPN_BASE} (?<message>MULTI_sva: pool returned IPv4=%{OPENVPN_POOL_RETURN:[openvpn][pool][return][ipv4]}, IPv6=%{OPENVPN_POOL_RETURN:[openvpn][pool][return][ipv6]})",
+        "%{OPENVPN_BASE} (?<message>MULTI: new connection by client '%{USERNAME:[openvpn][peer][duplicate]}' will cause previous active sessions by this client to be dropped.  Remember to use the --duplicate-cn option if you want multiple clients using the same certificate or username to concurrently connect.)",
+        "%{OPENVPN_BASE} %{OPENVPN_PUSH:message}",
+        "%{OPENVPN_BASE} %{OPENVPN_SENT_CONTROL:message}",
+        "%{OPENVPN_BASE} %{OPENVPN_DATA_CHANNEL:message}",
+        "%{OPENVPN_BASE} \[UNDEF\] %{GREEDYDATA:message}",
+        "%{OPENVPN_BASE} \[%{OPENVPN_USER}\] %{GREEDYDATA:message}",
+        "%{OPENVPN_BASE} %{GREEDYDATA:message}"
+      ]
+    }
+
+    pattern_definitions => {
+        "OPENVPN_PUSH" => "(PUSH: %{GREEDYDATA:[openvpn][push][message]})"
+        "OPENVPN_SENT_CONTROL" => "(SENT CONTROL \[%{USERNAME:[openvpn][control][user]}\]: '%{DATA:[openvpn][control][message]}' \(status=%{INT:[openvpn][control][status]:int}\))"
+        "OPENVPN_DATA_CHANNEL" => "(%{NOTSPACE:[openvpn][data][channel]} Data Channel: %{GREEDYDATA:[openvpn][data][message]})"
+        "OPENVPN_POOL_RETURN" => "(%{IP:[openvpn][pool][returned]}|\(Not enabled\))"
+        "OPENVPN_TIMESTAMP" => "%{YEAR}-%{MONTHNUM2}-%{MONTHDAY} %{TIME}"
+        "OPENVPN_USER" => "%{USERNAME:[source][user][name]}"
+        "OPENVPN_CONNECTION" => "(%{IP:[source][ip]}:%{POSINT:[source][port]:int})"
+        "OPENVPN_PEER_INFO" => "%{GREEDYDATA:[openvpn][peer][info][field]}=%{GREEDYDATA:[openvpn][peer][info][value]}"
+        "OPENVPN_BASE" => "%{OPENVPN_TIMESTAMP:timestamp}( %{OPENVPN_USER}/)?(\s?%{OPENVPN_CONNECTION})?"
+    }
+    overwrite => ["message"]
+  }
+}
+
+```
 
 ### Ingest Pipelines
 
+In contrast to Logstash filters which are directly processed by Logstash using an ingest pipeline means that log data is parsed upon *ingestion* into Elasticsearch. Ingest pipelines use so [ingest processors](https://www.elastic.co/guide/en/elasticsearch/reference/current/processors.html) for parsing log data. There are many different types of ingest processors available, please consult the Elasticsearch documentation for more details. The below code shows a simple pipeline definition (in YAML notation) using only a single [`grok`](https://www.elastic.co/guide/en/elasticsearch/reference/master/grok-processor.html) processor.
+
+```yaml
+description: Pipeline for parsing Linux auditd logs
+processors:
+- grok:
+    field: message
+    pattern_definitions:
+      AUDIT_TYPE: "type=%{NOTSPACE:auditd.log.record_type}"
+      AUDIT_NODE: "node=%{IPORHOST:auditd.log.node} "
+      AUDIT_PREFIX: "^(?:%{AUDIT_NODE})?%{AUDIT_TYPE} msg=audit\\(%{NUMBER:auditd.log.epoch}:%{NUMBER:auditd.log.sequence}\\):(%{DATA})?"
+      AUDIT_KEY_VALUES: "%{WORD}=%{GREEDYDATA}"
+      ANY: ".*"
+    patterns:
+    - "%{AUDIT_PREFIX} %{AUDIT_KEY_VALUES:auditd.log.kv} old auid=%{NUMBER:auditd.log.old_auid}
+      new auid=%{NUMBER:auditd.log.new_auid} old ses=%{NUMBER:auditd.log.old_ses}
+      new ses=%{NUMBER:auditd.log.new_ses}"
+    - "%{AUDIT_PREFIX} %{AUDIT_KEY_VALUES:auditd.log.kv} msg=['\"]([^=]*\\s)?%{ANY:auditd.log.sub_kv}['\"]"
+    - "%{AUDIT_PREFIX} %{AUDIT_KEY_VALUES:auditd.log.kv}"
+    - "%{AUDIT_PREFIX}"
+    - "%{AUDIT_TYPE} %{AUDIT_KEY_VALUES:auditd.log.kv}"
+```
+
+To configure logs to use an ingest pipeline you have to set the log config to add the `@metadata.pipeline` field (assuming the Logstash Setup processor is used).
+
+```yaml
+add_field:
+  "[@metadata][pipeline]": "auditd-logs"
+```
+
+Note that you also have to use the [`Ingest Pipeline processor`][cr_kyoushi.dataset.processors.IngestCreateProcessor] as part of your pre-processing configuration to setup the pipeline before the parsing phase.
+
+
+### Index Templates
 ## Post Processing
