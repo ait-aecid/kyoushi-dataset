@@ -1,0 +1,116 @@
+pre_processors:
+  - name: Decompress all GZIP logs
+    type: gzip
+    path: gather
+    glob: "*/logs/**/*.gz"
+
+  - name: Ensure processing config directory exists
+    type: mkdir
+    path: processing/config
+
+  - name: Prepare server list
+    type: template
+    context:
+      vars:
+        exclude_groups: ["Region.*", "envvars.*", "instance-.*", "meta-.*", "nova"]
+        exclude_hosts: ["monitoring", "mgmthost"]
+      var_files: gather/inet-firewall/facts.json
+    src: processing/templates/groups.json.j2
+    dest: processing/config/groups.yaml
+
+  - name: Prepare server facts
+    type: template
+    context:
+      var_files: processing/config/groups.yaml
+    template_context:
+      vars:
+        exclude_groups: ["Region.*", "envvars.*", "instance-.*", "meta-.*", "nova"]
+        exclude_interfaces: ["lo", 'tun\d*']
+        servers: "{{ all }}"
+      var_files: |
+       {
+       {% for server in all %}
+        "server_logs": "processing/config/logs.yaml",
+        "{{ server }}": "gather/{{ server }}/facts.json"{% if not loop.last %},{% endif %}
+       {% endfor %}
+       }
+    src: processing/templates/servers.json.j2
+    dest: processing/config/servers.yaml
+
+  - name: Add openvpn index mapping
+    type: elasticsearch.template
+    template: processing/logstash/openvpn-index-template.json
+    template_name: openvpn
+    index_patterns: ["openvpn-*"]
+
+  - name: Add auditd ingest pipeline to elasticsearch
+    type: elasticsearch.ingest
+    ingest_pipeline: processing/logstash/auditd-ingest.yml
+    ingest_pipeline_id: auditd-logs
+
+  - name: Setup logstash pipeline
+    type: logstash.setup
+    context:
+      var_files:
+        servers: processing/config/servers.yaml
+    servers: "{{ servers }}"
+parser:
+  settings_dir: processing/logstash
+  conf_dir: processing/logstash/conf.d
+  log_level: debug
+  log_dir: processing/logstash/log
+  completed_log: processing/logstash/log/file-completed.log
+  data_dir: processing/logstash/data
+  parsed_dir: parsed
+  save_parsed: false
+post_processors:
+  - name: Trim server logs to observation time
+    type: dataset.trim
+    context:
+      var_files:
+        groups: processing/config/groups.yaml
+    indices: |
+      [
+      {% for server in groups["servers"] %}
+        "*-{{ server }}"{% if not loop.last %},{% endif %}
+      {% endfor %}
+      ]
+
+  - name: Extract foothold phase information
+    type: template
+    context:
+      var_files:
+        queries: processing/config/attack_queries.yaml
+    src: processing/templates/attacker/foothold.yaml.j2
+    dest: processing/config/attacker/foothold.yaml
+
+  - name: Extract escalate phase information
+    type: template
+    context:
+      var_files:
+        queries: processing/config/attack_queries.yaml
+        attacker_sm: gather/attacker_0/configs/sm.yml
+    src: processing/templates/attacker/escalate.yaml.j2
+    dest: processing/config/attacker/escalate.yaml
+
+  - name: Ensure rules directory exists
+    type: mkdir
+    path: rules
+
+  - name: Render labeling rules
+    type: foreach
+    # processing/templates/rules
+    items:
+      - src: openvpn.yaml.j2
+        dest: openvpn.yaml
+    processor:
+      type: template
+      name: Rendering labeling rule {{ item.src }}
+      template_context:
+        var_files:
+          attacker: processing/config/attacker/attacker.yaml
+          escalate: processing/config/attacker/escalate.yaml
+          foothold: processing/config/attacker/foothold.yaml
+          servers: processing/config/servers.yaml
+      src: "processing/templates/rules/{{ item.src }}"
+      dest: "rules/{{ item.dest }}"
