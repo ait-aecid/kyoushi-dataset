@@ -113,6 +113,7 @@ post_processors:
 
 ## Pre Processing
 
+The pre-processing phase can be used to prepare your raw dataset for parsing and data storage with Logstash and Elasticsearch. This could, for example, involve converting a binary data type (e.g., network captures in PCAP format) into a text format that can be processed by Logstash. See the [processors reference]({{ image_url("processors") }}) for an overview of processors.
 
 ## Parsing
 
@@ -120,44 +121,47 @@ Below we will give a brief introduction on how to configure the way raw log data
 
 The *Cyber Range Kyoushi Dataset* tool basically supports two ways of configuring and processing log dissection. Either [Logstash filters](https://www.elastic.co/guide/en/logstash/current/filter-plugins.html) processed by Logstash or using [Elasticsearch ingest pipelines
 ](https://www.elastic.co/guide/en/elasticsearch/reference/current/ingest.html).
+
 ### Logstash Filters
 
 [Logstash filters](https://www.elastic.co/guide/en/logstash/current/filter-plugins.html) can be used to parse log data directly with Logstash. See the Logstash documentation for an overview of available filters. Filters must be configured in Logstash conf files (default conf dir `<dataset>/processing/logstash/conf.d/`) in so called `filter` blocks. The below example shows a [`grok`](https://www.elastic.co/guide/en/logstash/current/plugins-filters-grok.html) filter used to dissect OpenVPN logs.
 
 ```ruby
 filter {
-  grok {
-    match => {
-      "message" => [
-        "%{OPENVPN_BASE} peer info: %{OPENVPN_PEER_INFO}",
-        "%{OPENVPN_BASE} VERIFY EKU %{GREEDYDATA:[openvpn][verify][eku][status]}",
-        "%{OPENVPN_BASE} VERIFY KU %{GREEDYDATA:[openvpn][verify][ku][status]}",
-        "%{OPENVPN_BASE} VERIFY %{DATA:[openvpn][verify][status]}: depth=%{NONNEGINT:[openvpn][verify][depth]:int}, %{GREEDYDATA:[openvpn][peer][cert][info]}",
-        "%{OPENVPN_BASE} (?<message>MULTI: Learn: %{IP:[destination][ip]} -> %{OPENVPN_USER}/%{OPENVPN_CONNECTION})",
-        "%{OPENVPN_BASE} (?<message>MULTI: primary virtual IP for %{OPENVPN_USER}/%{OPENVPN_CONNECTION}: %{IP:[destination][ip]})",
-        "%{OPENVPN_BASE} (?<message>MULTI_sva: pool returned IPv4=%{OPENVPN_POOL_RETURN:[openvpn][pool][return][ipv4]}, IPv6=%{OPENVPN_POOL_RETURN:[openvpn][pool][return][ipv6]})",
-        "%{OPENVPN_BASE} (?<message>MULTI: new connection by client '%{USERNAME:[openvpn][peer][duplicate]}' will cause previous active sessions by this client to be dropped.  Remember to use the --duplicate-cn option if you want multiple clients using the same certificate or username to concurrently connect.)",
-        "%{OPENVPN_BASE} %{OPENVPN_PUSH:message}",
-        "%{OPENVPN_BASE} %{OPENVPN_SENT_CONTROL:message}",
-        "%{OPENVPN_BASE} %{OPENVPN_DATA_CHANNEL:message}",
-        "%{OPENVPN_BASE} \[UNDEF\] %{GREEDYDATA:message}",
-        "%{OPENVPN_BASE} \[%{OPENVPN_USER}\] %{GREEDYDATA:message}",
-        "%{OPENVPN_BASE} %{GREEDYDATA:message}"
-      ]
-    }
+  if [type] == "openvpn" {
+    grok {
+      match => {
+        "message" => [
+          "%{OPENVPN_BASE} peer info: %{OPENVPN_PEER_INFO}",
+          "%{OPENVPN_BASE} VERIFY EKU %{GREEDYDATA:[openvpn][verify][eku][status]}",
+          "%{OPENVPN_BASE} VERIFY KU %{GREEDYDATA:[openvpn][verify][ku][status]}",
+          "%{OPENVPN_BASE} VERIFY %{DATA:[openvpn][verify][status]}: depth=%{NONNEGINT:[openvpn][verify][depth]:int}, %{GREEDYDATA:[openvpn][peer][cert][info]}",
+          "%{OPENVPN_BASE} (?<message>MULTI: Learn: %{IP:[destination][ip]} -> %{OPENVPN_USER}/%{OPENVPN_CONNECTION})",
+          "%{OPENVPN_BASE} (?<message>MULTI: primary virtual IP for %{OPENVPN_USER}/%{OPENVPN_CONNECTION}: %{IP:[destination][ip]})",
+          "%{OPENVPN_BASE} (?<message>MULTI_sva: pool returned IPv4=%{OPENVPN_POOL_RETURN:[openvpn][pool][return][ipv4]}, IPv6=%{OPENVPN_POOL_RETURN:[openvpn][pool][return][ipv6]})",
+          "%{OPENVPN_BASE} (?<message>MULTI: new connection by client '%{USERNAME:[openvpn][peer][duplicate]}' will cause previous active sessions by this client to be dropped.  Remember to use the --duplicate-cn option if you want multiple clients using the same certificate or username to concurrently connect.)",
+          "%{OPENVPN_BASE} %{OPENVPN_PUSH:message}",
+          "%{OPENVPN_BASE} %{OPENVPN_SENT_CONTROL:message}",
+          "%{OPENVPN_BASE} %{OPENVPN_DATA_CHANNEL:message}",
+          "%{OPENVPN_BASE} \[UNDEF\] %{GREEDYDATA:message}",
+          "%{OPENVPN_BASE} \[%{OPENVPN_USER}\] %{GREEDYDATA:message}",
+          "%{OPENVPN_BASE} %{GREEDYDATA:message}"
+        ]
+      }
 
-    pattern_definitions => {
-        "OPENVPN_PUSH" => "(PUSH: %{GREEDYDATA:[openvpn][push][message]})"
-        "OPENVPN_SENT_CONTROL" => "(SENT CONTROL \[%{USERNAME:[openvpn][control][user]}\]: '%{DATA:[openvpn][control][message]}' \(status=%{INT:[openvpn][control][status]:int}\))"
-        "OPENVPN_DATA_CHANNEL" => "(%{NOTSPACE:[openvpn][data][channel]} Data Channel: %{GREEDYDATA:[openvpn][data][message]})"
-        "OPENVPN_POOL_RETURN" => "(%{IP:[openvpn][pool][returned]}|\(Not enabled\))"
-        "OPENVPN_TIMESTAMP" => "%{YEAR}-%{MONTHNUM2}-%{MONTHDAY} %{TIME}"
-        "OPENVPN_USER" => "%{USERNAME:[source][user][name]}"
-        "OPENVPN_CONNECTION" => "(%{IP:[source][ip]}:%{POSINT:[source][port]:int})"
-        "OPENVPN_PEER_INFO" => "%{GREEDYDATA:[openvpn][peer][info][field]}=%{GREEDYDATA:[openvpn][peer][info][value]}"
-        "OPENVPN_BASE" => "%{OPENVPN_TIMESTAMP:timestamp}( %{OPENVPN_USER}/)?(\s?%{OPENVPN_CONNECTION})?"
+      pattern_definitions => {
+          "OPENVPN_PUSH" => "(PUSH: %{GREEDYDATA:[openvpn][push][message]})"
+          "OPENVPN_SENT_CONTROL" => "(SENT CONTROL \[%{USERNAME:[openvpn][control][user]}\]: '%{DATA:[openvpn][control][message]}' \(status=%{INT:[openvpn][control][status]:int}\))"
+          "OPENVPN_DATA_CHANNEL" => "(%{NOTSPACE:[openvpn][data][channel]} Data Channel: %{GREEDYDATA:[openvpn][data][message]})"
+          "OPENVPN_POOL_RETURN" => "(%{IP:[openvpn][pool][returned]}|\(Not enabled\))"
+          "OPENVPN_TIMESTAMP" => "%{YEAR}-%{MONTHNUM2}-%{MONTHDAY} %{TIME}"
+          "OPENVPN_USER" => "%{USERNAME:[source][user][name]}"
+          "OPENVPN_CONNECTION" => "(%{IP:[source][ip]}:%{POSINT:[source][port]:int})"
+          "OPENVPN_PEER_INFO" => "%{GREEDYDATA:[openvpn][peer][info][field]}=%{GREEDYDATA:[openvpn][peer][info][value]}"
+          "OPENVPN_BASE" => "%{OPENVPN_TIMESTAMP:timestamp}( %{OPENVPN_USER}/)?(\s?%{OPENVPN_CONNECTION})?"
+      }
+      overwrite => ["message"]
     }
-    overwrite => ["message"]
   }
 }
 
@@ -199,4 +203,35 @@ Note that you also have to use the [`Ingest Pipeline processor`][cr_kyoushi.data
 
 
 ### Index Templates
+
+While by default Elasticsearch will try to automatically create correct field mappings (i.e., type definitions) for the data fields created through the parsing process, but this is not very efficient if there are many different fields or fields for which Elasticsearch would produce an incorrect mapping. Also when using Eql Sequence Rules all referenced fields must have a defined field mapping or otherwise the underlying EQL query will result in an error. This can be problematic if one of the reference fields is optional (i.e., might not occur in all dataset instances) no automatic field mapping would be created. Thus it is recommend to pre-define the index field mappings using [index templates](https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-templates-v1.html). Each of the created index template files must be imported using the [`Index Template processor`][cr_kyoushi.dataset.processors.TemplateCreateProcessor] during the pre-processing phase.
+
 ## Post Processing
+
+The post-processing phase occurs after all logs have been parsed and stored in a structured data format in Elasticsearch. Thus [processors]({{ image_url("processors") }}) configured to be executed in the post-processing phase can use log data stored in Elasticsearch as configuration input or as part of Jinja2 template logic. This can be done through the special query objects [`Search`][cr_kyoushi.dataset.templates.elastic_dsl_search] and [`EQL`][cr_kyoushi.dataset.templates.elastic_eql_search] exposed as part of the Jinja2 template context. These query objects can be used to execute [Elasticsearch DSL queries](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl.html) ([`Search`][cr_kyoushi.dataset.templates.elastic_dsl_search]) or [EQL queries](https://www.elastic.co/guide/en/elasticsearch/reference/current/eql-syntax.html) ([`EQL`][cr_kyoushi.dataset.templates.elastic_eql_search]). The code snippet below shows example usage for both query objects. Note that the query body is read from a context variable for brevities sake.
+
+{% raw %}
+```jinja
+{%- set wp_cracked = Search(index="kyoushi-attacker_0")
+                            .query(queries.escalate.wp_cracked)
+                            .source(["@timestamp"]).extra(size=1)
+                            .execute().hits.hits
+-%}
+{%- set vpn_disconnect = EQL(
+                              index="kyoushi-attacker_0",
+                              body=queries.escalate.vpn_disconnect
+                         )["hits"]["sequences"][0]["events"]
+-%}
+```
+{% endraw %}
+
+Additionally we also expose the following query objects, which can be used to define DSL queries to be executed by [`Search`][cr_kyoushi.dataset.templates.elastic_dsl_search].
+See the  for more details.
+
+- `Q`: Can be used to define arbitrary DSL queries.
+- `Q_ALL`: Can be used to define a DSL query with multiple search terms using the same operator (e.g., `match`) connected by `and` clauses.
+- `Q_MATCH_ALL`: Same as `Q_ALL`, but the operator is always `match`.
+- `Q_TERM_ALL`: Same as `Q_ALL`, but the operator is always `term`.
+
+!!! Hint
+    Also see the Elasticsearch DSL Python API [search](https://elasticsearch-dsl.readthedocs.io/en/latest/search_dsl.html) and [queries](https://elasticsearch-dsl.readthedocs.io/en/latest/search_dsl.html#queries) doc for more details on the query object `Search`, `Q`, `Q_ALL`, `Q_MATCH_ALL` and `Q_TERM_ALL`.
