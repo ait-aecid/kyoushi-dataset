@@ -1,3 +1,5 @@
+"""This module contains utility functions used for sampling processed datasets."""
+
 from datetime import datetime
 from pathlib import Path
 from typing import (
@@ -27,6 +29,33 @@ def get_sample(
     start: Union[str, datetime, float, None] = None,
     stop: Union[str, datetime, float, None] = None,
 ) -> List[Hit]:
+    """Retrieve a list of sample log lines.
+
+    Args:
+        es: The elasticsearch client object
+        label_filter_script_id: The kyoushi filter scripts ID
+        labels: The labels to sample from
+        files: The log files to sample from
+        index: The elasticsearch indices to sample from
+        label_object: The field that contains the labeling data
+        size: The number of lines to sample
+        seed: The seed to use for the sample randomization
+        seed_field: The elasticsearch field to use for the random sample order
+        start: The minimum time stamp to sample from
+        stop: The maximum time stamp to sample from
+
+    Returns:
+        List of randomly sample log lines. Each line being
+        represented as a dict of the following format:
+
+        ```
+        - @timestamp: The log event timestamp
+          log: The elasticsearch log field (containing line number, original log line, etc.)
+          <label_object>.list: List of labels
+          <label_object>.rules: Map of labeling rules applied to the line
+          type: Log type
+        ```
+    """
     search = Search(using=es, index=index)
 
     # use random score to get a random sampling
@@ -82,6 +111,18 @@ def _get_closest(
     timestamp: Union[int, float, str],
     scale: str = "5d",
 ) -> Optional[Hit]:
+    """Utility function for retrieving log lines closest to a specified timestamp.
+
+    Args:
+        es: The elasticsearch client object
+        related: The indices to search through
+        timestamp: The timestamp to search close neighbors for
+        scale: The maximum distance to include
+
+    Returns:
+        Log event in the related index with the closest timestamp.
+        Or `None` if no such event could be found within the scale.
+    """
     search = Search(using=es, index=related)
 
     search = search.query(
@@ -114,6 +155,37 @@ def get_sample_log(
     related: Optional[List[str]] = None,
     index: Union[List[str], str, None] = None,
 ) -> Dict[str, Any]:
+    """Retrieves additional information for a sampled log entry.
+
+    This function can be used to retrieve additional information
+    such as, lines before or after. The information can be helpful
+    when analyzing sampled log lines.
+
+    Args:
+        es: The elasticsearch client object
+        sample: The sample log line
+        label: The label that the sample is fore
+        gather_dir: The dataset gather directory
+        before: The number of lines before the sample to fetch
+        after: The number of line after the sample to fetch
+        related: List of related elasticsearch indices to retrieve neighbor logs from
+        index: The index the sample was retrieved from
+
+    Returns:
+        Dictionary containing verbose information about the sample log.
+        Format:
+        ```
+        label: <The label the sample is for>
+        rules: <List of labeling rules applied to the sample log line>
+        path: <The samples log files relative path>
+        line_no: <The samples line number>
+        before: <List of log lines before the sample>
+        line: <The sample log line>
+        after: <List of log lines after the sample>
+        related: <List of log lines in related files with timestamps close to the sample.>
+        ```
+    """
+
     path = Path(sample.log.file.path)
     line_no = sample.log.file.line
     start = max(0, line_no - before)
