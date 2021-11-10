@@ -1,6 +1,6 @@
 # Process Dataset (`cr-kyoushi-dataset process`)
 
-{%- macro image_url(url) %}
+{%- macro doc_url(url) %}
 {%- if config.site_url|length -%}
 {{ config.site_url }}{{ url }}
 {%- else -%}
@@ -46,7 +46,7 @@ Every `processor` has at least the following basic configuration fields in addit
     dictionary position i.e., variable files defined first are overridden by those defined later.
 
 !!! Hint
-    See the [Dataset Processors]({{ image_url("processors") }}) section for a list of all `processors` shipped as part of the
+    See the [Dataset Processors]({{ doc_url("processors") }}) section for a list of all `processors` shipped as part of the
     *Cyber Range Kyoushi Dataset* tool.
 
 
@@ -113,7 +113,7 @@ post_processors:
 
 ## Pre Processing
 
-The pre-processing phase can be used to prepare your raw dataset for parsing and data storage with Logstash and Elasticsearch. This could, for example, involve converting a binary data type (e.g., network captures in PCAP format) into a text format that can be processed by Logstash. See the [processors reference]({{ image_url("processors") }}) for an overview of processors.
+The pre-processing phase can be used to prepare your raw dataset for parsing and data storage with Logstash and Elasticsearch. This could, for example, involve converting a binary data type (e.g., network captures in PCAP format) into a text format that can be processed by Logstash. See the [processors reference]({{ doc_url("processors") }}) for an overview of processors.
 
 ## Parsing
 
@@ -208,7 +208,7 @@ While by default Elasticsearch will try to automatically create correct field ma
 
 ## Post Processing
 
-The post-processing phase occurs after all logs have been parsed and stored in a structured data format in Elasticsearch. Thus [processors]({{ image_url("processors") }}) configured to be executed in the post-processing phase can use log data stored in Elasticsearch as configuration input or as part of Jinja2 template logic. This can be done through the special query objects [`Search`][cr_kyoushi.dataset.templates.elastic_dsl_search] and [`EQL`][cr_kyoushi.dataset.templates.elastic_eql_search] exposed as part of the Jinja2 template context. These query objects can be used to execute [Elasticsearch DSL queries](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl.html) ([`Search`][cr_kyoushi.dataset.templates.elastic_dsl_search]) or [EQL queries](https://www.elastic.co/guide/en/elasticsearch/reference/current/eql-syntax.html) ([`EQL`][cr_kyoushi.dataset.templates.elastic_eql_search]). The code snippet below shows example usage for both query objects. Note that the query body is read from a context variable for brevities sake.
+The post-processing phase occurs after all logs have been parsed and stored in a structured data format in Elasticsearch. Thus [processors]({{ doc_url("processors") }}) configured to be executed in the post-processing phase can use log data stored in Elasticsearch as configuration input or as part of Jinja2 template logic. This can be done through the special query objects [`Search`][cr_kyoushi.dataset.templates.elastic_dsl_search] and [`EQL`][cr_kyoushi.dataset.templates.elastic_eql_search] exposed as part of the Jinja2 template context. These query objects can be used to execute [Elasticsearch DSL queries](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl.html) ([`Search`][cr_kyoushi.dataset.templates.elastic_dsl_search]) or [EQL queries](https://www.elastic.co/guide/en/elasticsearch/reference/current/eql-syntax.html) ([`EQL`][cr_kyoushi.dataset.templates.elastic_eql_search]). The code snippet below shows example usage for both query objects. Note that the query body is read from a context variable for brevities sake.
 
 {% raw %}
 ```jinja

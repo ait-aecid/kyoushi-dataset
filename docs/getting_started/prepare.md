@@ -1,6 +1,6 @@
 # Prepare Dataset (`cr-kyoushi-dataset prepare`)
 
-{%- macro image_url(url) %}
+{%- macro doc_url(url) %}
 {%- if config.site_url|length -%}
 {{ config.site_url }}{{ url }}
 {%- else -%}
@@ -33,8 +33,8 @@ The command will copy both parts into the current work directory using the *Cybe
 ### Example Usage
 
 <figure>
-  <a data-fancybox="gallery" href="{{ image_url("images/prepare-demo.gif") }}">
-  <img src="{{ image_url("images/prepare-demo.gif") }}" alt="cr-kyoushi-dataset prepare CLI demo" />
+  <a data-fancybox="gallery" href="{{ doc_url("images/prepare-demo.gif") }}">
+  <img src="{{ doc_url("images/prepare-demo.gif") }}" alt="cr-kyoushi-dataset prepare CLI demo" />
   <figcaption>cr-kyoushi-dataset prepare demo</figcaption>
   </a>
 </figure>

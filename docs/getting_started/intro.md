@@ -1,6 +1,6 @@
 # Getting Started
 
-{%- macro image_url(url) %}
+{%- macro doc_url(url) %}
 {%- if config.site_url|length -%}
 {{ config.site_url }}{{ url }}
 {%- else -%}
@@ -11,8 +11,8 @@
 The Cyber Range Kyoushi Dataset tool implements the **processing layer** for the *Kyoushi* model-driven IDS dataset generation and labeling framework as described by [Frank [Frank21]](#Frank21) and shown in Figure 1. Dataset definition and generation are handled by the *Model*, *Testbed* and *Data Collection* layers.
 
 <figure>
-  <a data-fancybox="gallery" href="{{ image_url("images/system.png") }}">
-  <img src="{{ image_url("images/system.png") }}" alt="Cyber Range Kyoushi System Layers" />
+  <a data-fancybox="gallery" href="{{ doc_url("images/system.png") }}">
+  <img src="{{ doc_url("images/system.png") }}" alt="Cyber Range Kyoushi System Layers" />
   <figcaption>Figure 1: Cyber Range Kyoushi System Layers</figcaption>
   </a>
 </figure>
@@ -26,7 +26,7 @@ The *processing layer* takes a raw dataset (logs and facts) and model definition
     3. Post-Process
 3. Label
 
-Additionally the tool also implements a CLI command that can be used for sampling a labeled Kyoushi dataset (also see the [CLI reference]({{ image_url("cli") }})).
+Additionally the tool also implements a CLI command that can be used for sampling a labeled Kyoushi dataset (also see the [CLI reference]({{ doc_url("cli") }})).
 
 #### References
 
