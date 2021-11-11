@@ -186,6 +186,50 @@ On this page you can learn about the various dataset processors available with C
             - "!^context"
             - "!^type_field"
 
+### Elasticsearch Index Component Template (`elasticsearch.component_template`)
+
+::: cr_kyoushi.dataset.processors:ComponentTemplateCreateProcessor
+    rendering:
+        show_root_heading: false
+        show_source: false
+        show_root_toc_entry: false
+        heading_level: 4
+    selection:
+        inherited_members: yes
+        filters:
+            - "!^_[^_]"
+            - "!^__values__"
+            - "!^fields"
+            - "!__class__"
+            - "!__config__"
+            - "!^Config$"
+            - "!^execute"
+            - "!^name"
+            - "!^context"
+            - "!^type_field"
+
+### Elasticsearch Legacy Index Template (`elasticsearch.legacy_template`)
+
+::: cr_kyoushi.dataset.processors:LegacyTemplateCreateProcessor
+    rendering:
+        show_root_heading: false
+        show_source: false
+        show_root_toc_entry: false
+        heading_level: 4
+    selection:
+        inherited_members: yes
+        filters:
+            - "!^_[^_]"
+            - "!^__values__"
+            - "!^fields"
+            - "!__class__"
+            - "!__config__"
+            - "!^Config$"
+            - "!^execute"
+            - "!^name"
+            - "!^context"
+            - "!^type_field"
+
 ## Logstash
 
 ### Logstash setup (`logstash.setup`)
