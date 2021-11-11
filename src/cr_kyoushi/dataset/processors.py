@@ -22,6 +22,7 @@ from typing import (
 )
 
 from elasticsearch import Elasticsearch
+from elasticsearch.client.cluster import ClusterClient
 from elasticsearch.client.indices import IndicesClient
 from elasticsearch.client.ingest import IngestClient
 from elasticsearch_dsl.query import Range
@@ -685,12 +686,70 @@ class PcapElasticsearchProcessor(ProcessorBase):
             )
 
 
+class ComponentTemplateCreateProcessor(ProcessorBase):
+    """Processor for creating Elasticsearch index component templates.
+
+    This processor can be used to create Elasticsearch
+    index component templates. To prepare the Elasticsearch instance
+    for the parsing phase. See the
+    [index templates doc](https://www.elastic.co/guide/en/elasticsearch/reference/current/index-templates.html)
+    for more details.
+
+    Example:
+        ```yaml
+        - name: Add pcap component template
+          type: elasticsearch.component_template
+          template: processing/logstash/pcap-component-template.json
+          template_name: pcap
+        ```
+    """
+
+    type_: ClassVar = "elasticsearch.component_template"
+    template: FilePath = Field(
+        ..., description="The index component template to add to elasticsearch"
+    )
+    template_name: str = Field(
+        ..., description="The name to use for the index component template"
+    )
+    create_only: bool = Field(
+        False,
+        description="If true then an existing template with the given name will not be replaced.",
+    )
+
+    def execute(
+        self,
+        dataset_dir: Path,
+        dataset_config: DatasetConfig,
+        parser_config: LogstashParserConfig,
+        es: Elasticsearch,
+    ) -> None:
+        """Execute the processor and configure Elasticsearch index component template.
+
+        Args:
+            dataset_dir: The dataset path
+            dataset_config: The dataset configuration
+            parser_config: The dataset parser configuration
+            es: The elasticsearch client object
+        """
+        template_data = load_file(self.template)
+
+        ies = ClusterClient(es)
+
+        ies.put_component_template(
+            name=self.template_name,
+            body=template_data,
+            create=self.create_only,
+        )
+
+
 class TemplateCreateProcessor(ProcessorBase):
     """Processor for configuring Elasticsearch index templates.
 
     This processor can be used to configure Elasticsearch
     index templates. To prepare the Elasticsearch instance
-    for the parsing phase.
+    for the parsing phase. See the
+    [index templates doc](https://www.elastic.co/guide/en/elasticsearch/reference/current/index-templates.html)
+    for more details.
 
     Example:
         ```yaml
@@ -703,6 +762,103 @@ class TemplateCreateProcessor(ProcessorBase):
     """
 
     type_: ClassVar = "elasticsearch.template"
+    template: FilePath = Field(
+        ..., description="The index template to add to elasticsearch"
+    )
+    template_name: str = Field(
+        ..., description="The name to use for the index template"
+    )
+    index_patterns: Optional[List[str]] = Field(
+        None,
+        description=(
+            "The index patterns the template should be applied to. "
+            "If this is not set then the index template file must contain this information already!"
+        ),
+    )
+    indices_prefix_dataset: bool = Field(
+        True,
+        description=(
+            "If set to true the `<DATASET.name>-` is automatically prefixed to each pattern. This "
+            "is a convenience setting as per default all dataset indices start with this prefix."
+        ),
+    )
+    priority: int = Field(
+        100,
+        description="The priority to assign to this index template (higher values take precedent).",
+    )
+
+    composed_of: Optional[List[str]] = Field(
+        None,
+        description="Optional list of component templates the index template should be composed of.",
+    )
+
+    create_only: bool = Field(
+        False,
+        description="If true then an existing template with the given name will not be replaced.",
+    )
+
+    def execute(
+        self,
+        dataset_dir: Path,
+        dataset_config: DatasetConfig,
+        parser_config: LogstashParserConfig,
+        es: Elasticsearch,
+    ) -> None:
+        """Execute the processor and configure Elasticsearch index template.
+
+        Args:
+            dataset_dir: The dataset path
+            dataset_config: The dataset configuration
+            parser_config: The dataset parser configuration
+            es: The elasticsearch client object
+        """
+        template_data = load_file(self.template)
+
+        # configure the index patterns
+        if self.index_patterns is not None:
+            template_data["index_patterns"] = (
+                # if prefix is on add the prefix to all patterns
+                [f"{dataset_config.name}-{p}" for p in self.index_patterns]
+                if self.indices_prefix_dataset
+                # else add list as is
+                else self.index_patterns
+            )
+
+        # set template priority to given value
+        template_data["priority"] = self.priority
+
+        if self.composed_of is not None:
+            template_data["composed_of"] = self.composed_of
+
+        ies = IndicesClient(es)
+
+        ies.put_index_template(
+            name=self.template_name,
+            body=template_data,
+            create=self.create_only,
+        )
+
+
+class LegacyTemplateCreateProcessor(ProcessorBase):
+    """Processor for configuring Elasticsearch legacy index templates.
+
+    This processor can be used to configure Elasticsearch
+    index templates. To prepare the Elasticsearch instance
+    for the parsing phase. See the
+    [legacy index templates doc](https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-templates-v1.html)
+    for more details.
+
+    Example:
+        ```yaml
+        - name: Add pcap index mapping
+          type: elasticsearch.legacy_template
+          template: processing/logstash/pcap-index-template.json
+          template_name: pcap
+          index_patterns: ["pcap-*"]
+        ```
+    """
+
+    type_: ClassVar = "elasticsearch.legacy_template"
     template: FilePath = Field(
         ..., description="The index template to add to elasticsearch"
     )
@@ -1268,7 +1424,9 @@ class ProcessorPipeline:
                 GzipProcessor.type_: GzipProcessor,
                 LogstashSetupProcessor.type_: LogstashSetupProcessor,
                 PcapElasticsearchProcessor.type_: PcapElasticsearchProcessor,
+                ComponentTemplateCreateProcessor.type_: ComponentTemplateCreateProcessor,
                 TemplateCreateProcessor.type_: TemplateCreateProcessor,
+                LegacyTemplateCreateProcessor.type_: LegacyTemplateCreateProcessor,
                 IngestCreateProcessor.type_: IngestCreateProcessor,
                 TrimProcessor.type_: TrimProcessor,
             }
