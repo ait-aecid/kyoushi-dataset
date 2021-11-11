@@ -1,10 +1,15 @@
-name: Deploy Pages and Modules
+name: Create Documentation
+
 on:
-  release:
-    types: [published]
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
 
 jobs:
-  deploy:
+  test:
     runs-on: ubuntu-latest
 
     steps:
@@ -30,11 +35,16 @@ jobs:
       - run: poetry config virtualenvs.in-project true 
       - run: poetry install -v
 
-      - name: Build Package
-        run: poetry build
+      - name: Create Docs
+        run: make docs
 
-      - name: Configure Poetry
-        run: poetry config pypi-token.pypi ${{ secrets.PYPITOKEN }}
+      - run: mv site public
 
-      - name: Publish Package
-        run: poetry publish 
+      - name: Deploy to GitHub Pages
+        if: success()
+        uses: crazy-max/ghaction-github-pages@v2
+        with:
+          target_branch: gh-pages
+          build_dir: public
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
