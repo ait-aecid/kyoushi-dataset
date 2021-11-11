@@ -5,7 +5,11 @@ output {
       hosts => ["{{ ELASTICSEARCH_HOST }}"]
       ssl => {{ ELASTICSEARCH_SSL | tojson }}
       index => "{{ DATASET.name }}-%{type}-%{[host][name]}"
+{%- if USE_LEGACY_TEMPLATE %}
+      template => "{{ PARSER.settings_dir.absolute().joinpath(DATASET.name+'-legacy-index-template.json') }}"
+{%- else %}
       template => "{{ PARSER.settings_dir.absolute().joinpath(DATASET.name+'-index-template.json') }}"
+{%- endif %}
       template_name => "{{ DATASET.name }}"
       pipeline => "%{[@metadata][pipeline]}"
 {%- if ELASTICSEARCH_HOST_PATH is defined %}
@@ -24,7 +28,11 @@ output {
       hosts => ["{{ ELASTICSEARCH_HOST }}"]
       ssl => {{ ELASTICSEARCH_SSL | tojson }}
       index => "{{ DATASET.name }}-%{type}-%{[host][name]}"
+{%- if USE_LEGACY_TEMPLATE %}
+      template => "{{ PARSER.settings_dir.absolute().joinpath(DATASET.name+'-legacy-index-template.json') }}"
+{%- else %}
       template => "{{ PARSER.settings_dir.absolute().joinpath(DATASET.name+'-index-template.json') }}"
+{%- endif %}
       template_name => "{{ DATASET.name }}"
 {%- if ELASTICSEARCH_HOST_PATH is defined %}
       path => "{{ ELASTICSEARCH_HOST_PATH }}"

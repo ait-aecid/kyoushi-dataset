@@ -1045,11 +1045,24 @@ class LogstashSetupProcessor(ProcessorBase):
         description="The template to use for the logstash pipelines configuration",
     )
 
+    use_legacy_template: bool = Field(
+        False,
+        description="If the output config should use the legacy index template or the modern index template",
+    )
+
     index_template_template: Path = Field(
         Path("ecs-template.json.j2"),
         description=(
             "The template to use for the elasticsearch "
             "dataset index patterns index template"
+        ),
+    )
+
+    legacy_index_template_template: Path = Field(
+        Path("legacy-ecs-template.json.j2"),
+        description=(
+            "The template to use for the elasticsearch "
+            "dataset legacy index patterns index template"
         ),
     )
 
@@ -1109,6 +1122,7 @@ class LogstashSetupProcessor(ProcessorBase):
                 "DATASET": dataset_config,
                 "PARSER": parser_config,
                 "servers": self.servers,
+                "USE_LEGACY_TEMPLATE": self.use_legacy_template,
             }
         )
         # add elasticsearch connection variables
@@ -1157,6 +1171,16 @@ class LogstashSetupProcessor(ProcessorBase):
             self.index_template_template,
             parser_config.settings_dir.joinpath(
                 f"{dataset_config.name}-index-template.json"
+            ),
+            variables,
+            es,
+        )
+
+        # write legacy index template
+        write_template(
+            self.legacy_index_template_template,
+            parser_config.settings_dir.joinpath(
+                f"{dataset_config.name}-legacy-index-template.json"
             ),
             variables,
             es,
