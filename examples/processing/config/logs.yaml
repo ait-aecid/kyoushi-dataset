@@ -1,0 +1,20 @@
+hosts:
+  vpn:
+    - path: openvpn.log*
+      type: openvpn
+
+  attacker_0:
+    - path: ait.aecid.attacker.wpdiscuz/sm.log*
+      type: kyoushi
+      codec: json
+      # attack output lines can be **very** long
+      file_chunk_size: 200000000
+      add_field:
+        "[@metadata][kyoushi][sm]": "attacker"
+
+groups:
+  servers:
+    - path: audit/audit.log*
+      type: audit
+      add_field:
+        "[@metadata][pipeline]": "auditd-logs"

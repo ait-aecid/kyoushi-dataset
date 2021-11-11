@@ -1,0 +1,68 @@
+foothold:
+  vpn_connect:
+    start:
+      bool:
+        must:
+          - term:
+              current_state: initial
+          - term:
+              transition: vpn_connect
+          - term:
+              message_keyword: connecting_to_vpn
+    stop:
+      bool:
+        must:
+          - term:
+              current_state: initial
+          - term:
+              transition: vpn_connect
+          - term:
+              message_keyword: connected_to_vpn
+
+  vpn_disconnect:
+    start:
+      bool:
+        must:
+          - term:
+              current_state: wait_escalate_choice
+          - term:
+              transition: vpn_disconnect
+          - term:
+              message_keyword: disconnecting_from_vpn
+    stop:
+      bool:
+        must:
+          - term:
+              current_state: wait_escalate_choice
+          - term:
+              transition: vpn_disconnect
+          - term:
+              message_keyword: disconnected_from_vpn
+escalate:
+  vpn_connect:
+    start:
+      bool:
+        must:
+          - term:
+              current_state: cracked_passwords
+          - term:
+              transition: vpn_connect
+          - term:
+              message_keyword: connecting_to_vpn
+    stop:
+      bool:
+        must:
+          - term:
+              current_state: cracked_passwords
+          - term:
+              transition: vpn_connect
+          - term:
+              message_keyword: connected_to_vpn
+
+  vpn_disconnect:
+    query: >-
+      sequence
+        [attacker_end where current_state == "end" and transition == null]
+        [attacker where message_keyword == "disconnecting_from_vpn"]
+        [attacker where message_keyword == "disconnected_from_vpn"]
+    size: 1

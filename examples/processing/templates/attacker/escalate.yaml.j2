@@ -1,0 +1,20 @@
+{%- set index = "kyoushi-attacker_0" %}
+{%- set vpn_connect = Search(index=index).query(queries.escalate.vpn_connect.start)
+                            .source(["@timestamp"]).extra(size=1)
+                            .execute().hits.hits[0]._source["@timestamp"]
+-%}
+{%- set vpn_connected = Search(index=index).query(queries.escalate.vpn_connect.stop)
+                            .source(["@timestamp"]).extra(size=1)
+                            .execute().hits.hits[0]._source["@timestamp"]
+-%}
+{%- set vpn_disconnect = EQL(index=index, body=queries.escalate.vpn_disconnect)["hits"]["sequences"][0]["events"] -%}
+start: "{{ vpn_connect }}"
+stop: "{{ vpn_disconnect[2]["_source"]["@timestamp"] }}"
+
+vpn_connect:
+    start: "{{ vpn_connect }}"
+    stop: "{{ vpn_connected }}"
+
+vpn_disconnect:
+    start: "{{ vpn_disconnect[1]["_source"]["@timestamp"] }}"
+    stop: "{{ vpn_disconnect[2]["_source"]["@timestamp"] }}"

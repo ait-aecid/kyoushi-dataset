@@ -27,8 +27,17 @@ edit_uri: edit/main/docs/
 
 nav:
 - Overview: index.md
-- Usage:
-    - CLI Reference: usage/cli.md
+- Getting Started:
+    - Intro: getting_started/intro.md
+    - Prepare Dataset: getting_started/prepare.md
+    - Process Dataset: getting_started/process.md
+    - Label Dataset: getting_started/label.md
+    - Sample Labels: getting_started/sample.md
+- Examples:
+  - Dataset Processing: examples/process.md
+- Dataset Processors: processors.md
+- Labeling Rules: rules.md
+- CLI Reference: cli.md
 - Code Reference:
     - Config: reference/config.md
     - Elasticsearch: reference/elasticsearch.md
