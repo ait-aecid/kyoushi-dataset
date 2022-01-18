@@ -145,7 +145,7 @@ def convert_pcap_to_ecs(
     index_regex = re.compile(r'{"index":{"_index":".*","_type":".*"}}')
     with open(dest, "w") as dest_file:
         assert proc.stdout is not None, "TShark process stdout should be available"
-        for line in io.TextIOWrapper(proc.stdout, encoding="utf-8"):
+        for line in io.TextIOWrapper(proc.stdout, encoding="utf-8", errors='replace'):
             # when remove index is true discard all index lines
             if not remove_index_messages or not index_regex.match(line):
                 if remove_filtered:
