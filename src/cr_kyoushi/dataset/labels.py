@@ -850,7 +850,7 @@ class UpdateSubQueryRule(RuleBase, QueryBase):
             dataset_config.name, self.indices_prefix_dataset, self.index
         )
 
-        search = Search(using=es, index=index )
+        search = Search(using=es, index=index)
 
         # ensure we have lists
         if not isinstance(self.query, List):
@@ -874,7 +874,7 @@ class UpdateSubQueryRule(RuleBase, QueryBase):
             search = search.exclude(_exclude)
 
         result = 0
-        for hit in search.params(scroll='30m').scan():
+        for hit in search.params(scroll="30m").scan():
             # make deep copy of sub query so we can template it
             sub_query = self.sub_query.copy(deep=True)
 
