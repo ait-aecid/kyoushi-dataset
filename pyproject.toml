@@ -24,6 +24,7 @@ pyshark = "^0.4.3"
 aiohttp = "^3.7.4"
 ujson = "^4.2.0"
 livereload = "^2.6.3"
+markupsafe = "2.0.1"
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"
