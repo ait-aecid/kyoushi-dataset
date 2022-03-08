@@ -1,0 +1,1151 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="IDS Dataset processing and labeling tool.">
+      
+      
+      
+      
+        <link rel="canonical" href="https://ait-aecid.github.io/kyoushi-dataset/examples/process/">
+      
+      <link rel="shortcut icon" href="../../images/favicon.ico">
+      <meta name="generator" content="mkdocs-1.2.3, mkdocs-material-6.2.8">
+    
+    
+      
+        <title>Dataset Processing - Cyber Range Kyoushi Dataset</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.cb6bc1d0.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.39b8e14a.min.css">
+        
+      
+    
+    
+    
+      
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,400i,700%7CRoboto+Mono&display=fallback">
+        <style>body,input{font-family:"Roboto",-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif}code,kbd,pre{font-family:"Roboto Mono",SFMono-Regular,Consolas,Menlo,monospace}</style>
+      
+    
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../../stylesheets/extra.css">
+    
+      <link rel="stylesheet" href="../../stylesheets/jquery.fancybox.min.css">
+    
+    
+      
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="ait" data-md-color-primary="" data-md-color-accent="">
+      
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#processing-example" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header-nav md-grid" aria-label="Header">
+    <a href="https://ait-aecid.github.io/kyoushi-dataset/" title="Cyber Range Kyoushi Dataset" class="md-header-nav__button md-logo" aria-label="Cyber Range Kyoushi Dataset">
+      
+  <img src="../../images/cr_icon.svg" alt="logo">
+
+    </a>
+    <label class="md-header-nav__button md-icon" for="__drawer">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2z"/></svg>
+    </label>
+    <div class="md-header-nav__title" data-md-component="header-title">
+      <div class="md-header-nav__ellipsis">
+        <div class="md-header-nav__topic">
+          <span class="md-ellipsis">
+            Cyber Range Kyoushi Dataset
+          </span>
+        </div>
+        <div class="md-header-nav__topic">
+          <span class="md-ellipsis">
+            
+              Dataset Processing
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      <label class="md-header-nav__button md-icon" for="__search">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0116 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 019.5 16 6.5 6.5 0 013 9.5 6.5 6.5 0 019.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5z"/></svg>
+      </label>
+      
+<div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" data-md-state="active" required>
+      <label class="md-search__icon md-icon" for="__search">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0116 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 019.5 16 6.5 6.5 0 013 9.5 6.5 6.5 0 019.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5z"/></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"/></svg>
+      </label>
+      <button type="reset" class="md-search__icon md-icon" aria-label="Clear" data-md-component="search-reset" tabindex="-1">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>
+      </button>
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header-nav__source">
+        
+<a href="https://github.com/ait-aecid/kyoushi-dataset/" title="Go to repository" class="md-source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path d="M439.55 236.05L244 40.45a28.87 28.87 0 00-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 01-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 000 40.81l195.61 195.6a28.86 28.86 0 0040.8 0l194.69-194.69a28.86 28.86 0 000-40.81z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    kyoushi-dataset
+  </div>
+</a>
+      </div>
+    
+  </nav>
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="https://ait-aecid.github.io/kyoushi-dataset/" title="Cyber Range Kyoushi Dataset" class="md-nav__button md-logo" aria-label="Cyber Range Kyoushi Dataset">
+      
+  <img src="../../images/cr_icon.svg" alt="logo">
+
+    </a>
+    Cyber Range Kyoushi Dataset
+  </label>
+  
+    <div class="md-nav__source">
+      
+<a href="https://github.com/ait-aecid/kyoushi-dataset/" title="Go to repository" class="md-source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path d="M439.55 236.05L244 40.45a28.87 28.87 0 00-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 01-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 000 40.81l195.61 195.6a28.86 28.86 0 0040.8 0l194.69-194.69a28.86 28.86 0 000-40.81z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    kyoushi-dataset
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        Overview
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="nav-2" type="checkbox" id="nav-2" >
+      
+      <label class="md-nav__link" for="nav-2">
+        Getting Started
+        <span class="md-nav__icon md-icon"></span>
+      </label>
+      <nav class="md-nav" aria-label="Getting Started" data-md-level="1">
+        <label class="md-nav__title" for="nav-2">
+          <span class="md-nav__icon md-icon"></span>
+          Getting Started
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting_started/intro/" class="md-nav__link">
+        Intro
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting_started/prepare/" class="md-nav__link">
+        Prepare Dataset
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting_started/process/" class="md-nav__link">
+        Process Dataset
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting_started/label/" class="md-nav__link">
+        Label Dataset
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting_started/sample/" class="md-nav__link">
+        Sample Labels
+      </a>
+    </li>
+  
+
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+    
+  
+  
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="nav-3" type="checkbox" id="nav-3" checked>
+      
+      <label class="md-nav__link" for="nav-3">
+        Examples
+        <span class="md-nav__icon md-icon"></span>
+      </label>
+      <nav class="md-nav" aria-label="Examples" data-md-level="1">
+        <label class="md-nav__title" for="nav-3">
+          <span class="md-nav__icon md-icon"></span>
+          Examples
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+          
+            
+  
+  
+    
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" data-md-toggle="toc" type="checkbox" id="__toc">
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          Dataset Processing
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        Dataset Processing
+      </a>
+      
+        
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#layout" class="md-nav__link">
+    Layout 
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#processyaml" class="md-nav__link">
+    process.yaml
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#config" class="md-nav__link">
+    config
+  </a>
+  
+    <nav class="md-nav" aria-label="config">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#name_queriesyaml" class="md-nav__link">
+    &lt;name&gt;_queries.yaml
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#logsyaml" class="md-nav__link">
+    logs.yaml
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#logstash" class="md-nav__link">
+    logstash
+  </a>
+  
+    <nav class="md-nav" aria-label="logstash">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#confd" class="md-nav__link">
+    conf.d
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#data" class="md-nav__link">
+    data**
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#log" class="md-nav__link">
+    log**
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#jvmoptions" class="md-nav__link">
+    jvm.options*
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#log4j2properties" class="md-nav__link">
+    log4j2.properties*
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#logstashyml" class="md-nav__link">
+    logstash.yml*
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pipelinesyml" class="md-nav__link">
+    pipelines.yml*
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#name-index-templatejson" class="md-nav__link">
+    &lt;name&gt;-index-template.json
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#name-ingestyaml" class="md-nav__link">
+    &lt;name&gt;-ingest.yaml
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#templates" class="md-nav__link">
+    templates
+  </a>
+  
+    <nav class="md-nav" aria-label="templates">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rules" class="md-nav__link">
+    rules
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#attacker" class="md-nav__link">
+    attacker
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#groupsjsonj2" class="md-nav__link">
+    groups.json.j2
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#serversjsonj2" class="md-nav__link">
+    servers.json.j2
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../processors/" class="md-nav__link">
+        Dataset Processors
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../rules/" class="md-nav__link">
+        Labeling Rules
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cli/" class="md-nav__link">
+        CLI Reference
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="nav-7" type="checkbox" id="nav-7" >
+      
+      <label class="md-nav__link" for="nav-7">
+        Code Reference
+        <span class="md-nav__icon md-icon"></span>
+      </label>
+      <nav class="md-nav" aria-label="Code Reference" data-md-level="1">
+        <label class="md-nav__title" for="nav-7">
+          <span class="md-nav__icon md-icon"></span>
+          Code Reference
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/config/" class="md-nav__link">
+        Config
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/elasticsearch/" class="md-nav__link">
+        Elasticsearch
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/labels/" class="md-nav__link">
+        Labels
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/parser/" class="md-nav__link">
+        Parser
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/pcap/" class="md-nav__link">
+        PCAP Utilities
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/processors/" class="md-nav__link">
+        Processors
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/sample/" class="md-nav__link">
+        Sampling
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/templates/" class="md-nav__link">
+        Templates
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/utils/" class="md-nav__link">
+        Utility Functions
+      </a>
+    </li>
+  
+
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/" class="md-nav__link">
+        Contributing
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../license/" class="md-nav__link">
+        License
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#layout" class="md-nav__link">
+    Layout 
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#processyaml" class="md-nav__link">
+    process.yaml
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#config" class="md-nav__link">
+    config
+  </a>
+  
+    <nav class="md-nav" aria-label="config">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#name_queriesyaml" class="md-nav__link">
+    &lt;name&gt;_queries.yaml
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#logsyaml" class="md-nav__link">
+    logs.yaml
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#logstash" class="md-nav__link">
+    logstash
+  </a>
+  
+    <nav class="md-nav" aria-label="logstash">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#confd" class="md-nav__link">
+    conf.d
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#data" class="md-nav__link">
+    data**
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#log" class="md-nav__link">
+    log**
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#jvmoptions" class="md-nav__link">
+    jvm.options*
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#log4j2properties" class="md-nav__link">
+    log4j2.properties*
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#logstashyml" class="md-nav__link">
+    logstash.yml*
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pipelinesyml" class="md-nav__link">
+    pipelines.yml*
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#name-index-templatejson" class="md-nav__link">
+    &lt;name&gt;-index-template.json
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#name-ingestyaml" class="md-nav__link">
+    &lt;name&gt;-ingest.yaml
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#templates" class="md-nav__link">
+    templates
+  </a>
+  
+    <nav class="md-nav" aria-label="templates">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rules" class="md-nav__link">
+    rules
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#attacker" class="md-nav__link">
+    attacker
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#groupsjsonj2" class="md-nav__link">
+    groups.json.j2
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#serversjsonj2" class="md-nav__link">
+    servers.json.j2
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          <div class="md-content">
+            <article class="md-content__inner md-typeset">
+              
+                
+                  <a href="https://github.com/ait-aecid/kyoushi-dataset/edit/main/docs/examples/process.md" title="Edit this page" class="md-content__button md-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"/></svg>
+                  </a>
+                
+                
+                <h1 id="processing-example">Processing Example <!-- omit in toc --><a class="headerlink" href="#processing-example" title="Permanent link">&para;</a></h1>
+<p>The <a href="https://github.com/ait-aecid/kyoushi-dataset/tree/main/example">example</a> directory contains an example directory layout and mini configuration for dataset processing using the <em>Cyber Range Kyoushi Dataset</em> CLI tool.
+While the tool itself does not enforce any specific directory or file layout, other than configuring the processing and parsing pipeline through the <code>process.yaml</code> file, we recommend following the structure presented here as it promotes separating processing into multiple steps making each step smaller and easier to understand.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The layout presented here is also reflected by many of the default values of configuration options.</p>
+</div>
+<h2 id="layout">Layout <!-- omit in toc --><a class="headerlink" href="#layout" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="#processyaml"><code>process.yaml</code></a></li>
+<li><a href="#config"><code>config</code></a><ul>
+<li><a href="#name_queriesyaml"><code>&lt;name&gt;_queries.yaml</code></a></li>
+<li><a href="#logsyaml"><code>logs.yaml</code></a></li>
+</ul>
+</li>
+<li><a href="#logstash"><code>logstash</code></a><ul>
+<li><a href="#confd"><code>conf.d</code></a><ul>
+<li><a href="#0000_pre_processconf"><code>0000_pre_process.conf</code><strong>*</strong></a></li>
+<li><a href="#inputconf"><code>input.conf</code><strong>*</strong></a></li>
+<li><a href="#outputconf"><code>output.conf</code><strong>*</strong></a></li>
+<li><a href="#log-typeconf"><code>&lt;log type&gt;.conf</code></a></li>
+</ul>
+</li>
+<li><a href="#data"><code>data</code><strong>**</strong></a></li>
+<li><a href="#log"><code>log</code><strong>**</strong></a></li>
+<li><a href="#jvmoptions"><code>jvm.options</code><strong>*</strong></a></li>
+<li><a href="#log4j2properties"><code>log4j2.properties</code><strong>*</strong></a></li>
+<li><a href="#logstashyml"><code>logstash.yml</code><strong>*</strong></a></li>
+<li><a href="#pipelinesyml"><code>pipelines.yml</code><strong>*</strong></a></li>
+<li><a href="#name-index-templatejson"><code>&lt;name&gt;-index-template.json</code></a></li>
+<li><a href="#name-ingestyaml"><code>&lt;name&gt;-ingest.yaml</code></a></li>
+</ul>
+</li>
+<li><a href="#templates"><code>templates</code></a><ul>
+<li><a href="#rules"><code>rules</code></a><ul>
+<li><a href="#rule-classyamlj2"><code>&lt;rule class&gt;.yaml.j2</code></a></li>
+</ul>
+</li>
+<li><a href="#attacker"><code>attacker</code></a><ul>
+<li><a href="#attackeryamlj2"><code>attacker.yaml.j2</code></a></li>
+<li><a href="#phase-nameyamlj2"><code>&lt;phase name&gt;.yaml.j2</code></a></li>
+</ul>
+</li>
+<li><a href="#groupsjsonj2"><code>groups.json.j2</code></a></li>
+<li><a href="#serversjsonj2"><code>servers.json.j2</code></a></li>
+</ul>
+</li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><strong>*</strong> These files and directories are automatically generated by the <a href="../../reference/processors/#cr_kyoushi.dataset.processors.LogstashSetupProcessor"><code>Logstash setup processor</code></a>.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><strong>**</strong> By default the <code>logstash/data</code> and <code>logstash/log</code> directories are used as Logstash runtime
+directories for storing current state, temporary files and generated logs.</p>
+</div>
+<h2 id="processyaml"><code>process.yaml</code><a class="headerlink" href="#processyaml" title="Permanent link">&para;</a></h2>
+<p>The processing and parsing configuration.</p>
+<h2 id="config"><code>config</code><a class="headerlink" href="#config" title="Permanent link">&para;</a></h2>
+<p>The config directory should be used to store any static configuration files to be used or loaded as part of the dataset processing pipeline. Note that we also highly recommend to make this directory or a sub directory of it the target location for any config file that is dynamically rendered as part of the pipeline.</p>
+<h3 id="name_queriesyaml"><code>&lt;name&gt;_queries.yaml</code><a class="headerlink" href="#name_queriesyaml" title="Permanent link">&para;</a></h3>
+<p>As part of the post-processing phase it is likely that some of the used configuration file or processor templates will have to read the Elasticsearch database. This can either be done through an EQL or DSL query, both syntax types can result long query definitions. To keep template files and processor configurations brief we recommend putting Elasticsearch queries in separate files and load the query definitions when needed as part of the template or processor context.</p>
+<h3 id="logsyaml"><code>logs.yaml</code><a class="headerlink" href="#logsyaml" title="Permanent link">&para;</a></h3>
+<p>The <code>logs.yaml</code> file is used to define which of the gathered log files should be parsed and what meta information should be added to them. The file is structured into two main fields <code>servers</code> and <code>groups</code> mirroring the Ansible group and host vars structure. Log file configurations can be either assigned to a host (server) directly or indirectly via the groups it belongs to. See the <a href="../../reference/config/#cr_kyoushi.dataset.config.LogstashLogConfig"><code>Logstash Log Config model</code></a> for details on the configuration format for a single log file. While it is possible to integrate this information as part of the testbeds TIM group and host vars we recommend using the <code>logs.yaml</code> file, because it ensures all Dataset processing configuration can be viewed and accessed in a single location. Host and group vars could only be inspected in the servers fact files (which are very large and hard to read) or after pre-processing once the facts have been curated.</p>
+<h2 id="logstash"><code>logstash</code><a class="headerlink" href="#logstash" title="Permanent link">&para;</a></h2>
+<p>The logstash directory is used for both storing the Logstash parser configuration as well as files generated at runtime (e.g., Logstash logs).</p>
+<h3 id="confd"><code>conf.d</code><a class="headerlink" href="#confd" title="Permanent link">&para;</a></h3>
+<p>The <code>conf.d</code> directory contains all Logstash parsing configuration files that should be loaded i.e., input, output and filter definitions. Note that if you use the <a href="../../reference/processors/#cr_kyoushi.dataset.processors.LogstashSetupProcessor"><code>Logstash setup processor</code></a> input and output configuration are automatically generated and you only have to define filter definitions used to parse raw logs into structured data.</p>
+<h4 id="0000_pre_processconf"><code>0000_pre_process.conf</code><strong>*</strong><a class="headerlink" href="#0000_pre_processconf" title="Permanent link">&para;</a></h4>
+<p>A special Logstash filter configuration file containing filters used to bootstrap log events for parsing. For example patching line numbers into log events is done by a ruby filter configured in this file.</p>
+<h4 id="inputconf"><code>input.conf</code><strong>*</strong><a class="headerlink" href="#inputconf" title="Permanent link">&para;</a></h4>
+<p>Logstash input configuration file containing all log file inputs and their input settings.</p>
+<h4 id="outputconf"><code>output.conf</code><strong>*</strong><a class="headerlink" href="#outputconf" title="Permanent link">&para;</a></h4>
+<p>Logstash output configuration containing the elasticsearch output settings and an optional file output used to store parsed versions of the log files
+(only used for logs configured with <code>save_parsed: true</code>).</p>
+<h4 id="log-typeconf"><code>&lt;log type&gt;.conf</code><a class="headerlink" href="#log-typeconf" title="Permanent link">&para;</a></h4>
+<p>To configure how log data is parsed it is recommended to create a Logstash filter configuration file for each log type. This makes it easier to edit, update and read parsing configuration as each file will be smaller and less complicated than having a single file containing filters for all log data.</p>
+<h3 id="data"><code>data</code><strong>**</strong><a class="headerlink" href="#data" title="Permanent link">&para;</a></h3>
+<p>The Logstash runtime directory used to store state und plugin data such as pointers for currently processed files.</p>
+<h3 id="log"><code>log</code><strong>**</strong><a class="headerlink" href="#log" title="Permanent link">&para;</a></h3>
+<p>The Logstash runtime logs directory.</p>
+<h3 id="jvmoptions"><code>jvm.options</code><strong>*</strong><a class="headerlink" href="#jvmoptions" title="Permanent link">&para;</a></h3>
+<p>Options file for the Java Virtual Machine (JVM) used to run Logstash. These options can be used to e.g., change the amount of RAM used by Logstash.</p>
+<h3 id="log4j2properties"><code>log4j2.properties</code><strong>*</strong><a class="headerlink" href="#log4j2properties" title="Permanent link">&para;</a></h3>
+<p>Logstash runtime logger configuration file.</p>
+<h3 id="logstashyml"><code>logstash.yml</code><strong>*</strong><a class="headerlink" href="#logstashyml" title="Permanent link">&para;</a></h3>
+<p>The Logstash main configuration file used to set the <code>data</code> and <code>log</code> runtime directories.</p>
+<h3 id="pipelinesyml"><code>pipelines.yml</code><strong>*</strong><a class="headerlink" href="#pipelinesyml" title="Permanent link">&para;</a></h3>
+<p>The Logstash pipeline configuration used to configure the processing mode and options. This is generated by the <a href="../../reference/processors/#cr_kyoushi.dataset.processors.LogstashSetupProcessor"><code>Logstash setup processor</code></a> and the config is
+setup so that Logstash runs in single thread mode as to preserve the log line order.</p>
+<h3 id="name-index-templatejson"><code>&lt;name&gt;-index-template.json</code><a class="headerlink" href="#name-index-templatejson" title="Permanent link">&para;</a></h3>
+<p>While by default Elasticsearch will try to automatically create correct field mappings (i.e., type definitions) for the data fields created through the parsing process, but this is not very efficient if there are many different fields or fields for which Elasticsearch would produce an incorrect mapping. Also when using Eql Sequence Rules all referenced fields must have a defined field mapping or otherwise the underlying EQL query will result in an error. This can be problematic if one of the reference fields is optional (i.e., might not occur in all dataset instances) no automatic field mapping would be created. Thus it is recommend to pre-define the index field mappings using <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-templates-v1.html">index templates</a>. Each of the created index template files must be imported using the <a href="../../reference/processors/#cr_kyoushi.dataset.processors.TemplateCreateProcessor"><code>Index Template processor</code></a> during the pre-processing phase.</p>
+<h3 id="name-ingestyaml"><code>&lt;name&gt;-ingest.yaml</code><a class="headerlink" href="#name-ingestyaml" title="Permanent link">&para;</a></h3>
+<p>As an alternative to configuring Logstash filters for parsing log data it is also possible to define <a href="https://www.elastic.co/guide/en/elasticsearch/reference/master/ingest.html">Ingest Pipelines</a> on the Elasticsearch server. This way the log data processing is handled by the Elasticsearch server upon receiving the log event. Each of the created ingest pipeline configurations must be imported into the Elasticsearch server during the pre-processing phase using the <a href="../../reference/processors/#cr_kyoushi.dataset.processors.IngestCreateProcessor"><code>Ingest Pipeline processor</code></a>. Logs can then be marked for processing by using the <code>add_field</code> configuration option.</p>
+<div class="highlight"><pre><span></span><code><span class="nt">add_field</span><span class="p">:</span><span class="w"></span>
+<span class="w">    </span><span class="s">&quot;[@metadata][pipeline]&quot;</span><span class="p p-Indicator">:</span><span class="w"> </span><span class="s">&quot;&lt;pipeline</span><span class="nv"> </span><span class="s">id&gt;&quot;</span><span class="w"></span>
+</code></pre></div>
+<h2 id="templates"><code>templates</code><a class="headerlink" href="#templates" title="Permanent link">&para;</a></h2>
+<p>The templates directory should be used to store all template files used in the processing pipeline.</p>
+<h3 id="rules"><code>rules</code><a class="headerlink" href="#rules" title="Permanent link">&para;</a></h3>
+<p>The rules directory should contain all labeling rule templates to be rendered during the post-processing phase.</p>
+<h4 id="rule-classyamlj2"><code>&lt;rule class&gt;.yaml.j2</code><a class="headerlink" href="#rule-classyamlj2" title="Permanent link">&para;</a></h4>
+<p>We recommend to split labeling rule templates in multiple files based on the log class/file they are written for. For example, if you write labeling rules for Apache server logs you might want to put them in a file called <code>apache.yaml.j2</code>. During the labeling phase rules are applied in lexicographical order so you might want to use numerical prefixes to ensure a certain rule file is applied before another.</p>
+<h3 id="attacker"><code>attacker</code><a class="headerlink" href="#attacker" title="Permanent link">&para;</a></h3>
+<p>One of the main inputs for labeling rule templates are the attacker facts and logs, because of this we recommend to keep attacker related config templates in a separate directory. This makes it easier for other people to read your processing-pipeline configuration.</p>
+<h4 id="attackeryamlj2"><code>attacker.yaml.j2</code><a class="headerlink" href="#attackeryamlj2" title="Permanent link">&para;</a></h4>
+<p>Further we recommend that you define general attacker information template for rendering basic attacker data (e.g., IP addresses, users, etc.). Should you have more than one attacker you might want to render the file multiple times.</p>
+<h4 id="phase-nameyamlj2"><code>&lt;phase name&gt;.yaml.j2</code><a class="headerlink" href="#phase-nameyamlj2" title="Permanent link">&para;</a></h4>
+<p>Also it is recommend to prepare a configuration template for each of the define attack phases for rendering phase specific information such as execution timestamps (parsed from the attacker logs) or dynamically chosen execution parameters (e.g. executed CLI commands).</p>
+<h3 id="groupsjsonj2"><code>groups.json.j2</code><a class="headerlink" href="#groupsjsonj2" title="Permanent link">&para;</a></h3>
+<p>While the host group information can also be read directly from the fact files, we recommend to curate this information into a simple <code>groups.json</code> file using a template processor. This makes the data easier to use in subsequent processors.</p>
+<h3 id="serversjsonj2"><code>servers.json.j2</code><a class="headerlink" href="#serversjsonj2" title="Permanent link">&para;</a></h3>
+<p>Similarly we recommend curating the server facts into a file only containing information necessary for dataset processing or documentation. This makes it easier to access the information as well as easier to understand for a human inspecting the resulting dataset.</p>
+                
+              
+              
+                
+
+
+              
+            </article>
+          </div>
+        </div>
+      </main>
+      
+        
+<footer class="md-footer">
+  
+    <div class="md-footer-nav">
+      <nav class="md-footer-nav__inner md-grid" aria-label="Footer">
+        
+          <a href="../../getting_started/sample/" class="md-footer-nav__link md-footer-nav__link--prev" rel="prev">
+            <div class="md-footer-nav__button md-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"/></svg>
+            </div>
+            <div class="md-footer-nav__title">
+              <div class="md-ellipsis">
+                <span class="md-footer-nav__direction">
+                  Previous
+                </span>
+                Sample Labels
+              </div>
+            </div>
+          </a>
+        
+        
+          <a href="../../processors/" class="md-footer-nav__link md-footer-nav__link--next" rel="next">
+            <div class="md-footer-nav__title">
+              <div class="md-ellipsis">
+                <span class="md-footer-nav__direction">
+                  Next
+                </span>
+                Dataset Processors
+              </div>
+            </div>
+            <div class="md-footer-nav__button md-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11H4z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    </div>
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-footer-copyright">
+        
+        Made with
+        <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+          Material for MkDocs
+        </a>
+      </div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    
+      <script src="../../assets/javascripts/vendor.18f0862e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.994580cf.min.js"></script><script id="__lang" type="application/json">{"clipboard.copy": "Copy to clipboard", "clipboard.copied": "Copied to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.placeholder": "Type to start searching", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.term.missing": "Missing"}</script>
+      
+      <script>
+        app = initialize({
+          base: "../..",
+          features: [],
+          search: Object.assign({
+            worker: "../../assets/javascripts/worker/search.9c0e82ba.min.js"
+          }, typeof search !== "undefined" && search)
+        })
+      </script>
+      
+        <script src="../../js/jquery-3.5.1.min.js"></script>
+      
+        <script src="../../js/jquery.fancybox.min.js"></script>
+      
+    
+  </body>
+</html>

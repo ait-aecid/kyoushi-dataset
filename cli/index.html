@@ -1,0 +1,1165 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="IDS Dataset processing and labeling tool.">
+      
+      
+      
+      
+        <link rel="canonical" href="https://ait-aecid.github.io/kyoushi-dataset/cli/">
+      
+      <link rel="shortcut icon" href="../images/favicon.ico">
+      <meta name="generator" content="mkdocs-1.2.3, mkdocs-material-6.2.8">
+    
+    
+      
+        <title>CLI Reference - Cyber Range Kyoushi Dataset</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.cb6bc1d0.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.39b8e14a.min.css">
+        
+      
+    
+    
+    
+      
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,400i,700%7CRoboto+Mono&display=fallback">
+        <style>body,input{font-family:"Roboto",-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif}code,kbd,pre{font-family:"Roboto Mono",SFMono-Regular,Consolas,Menlo,monospace}</style>
+      
+    
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../stylesheets/extra.css">
+    
+      <link rel="stylesheet" href="../stylesheets/jquery.fancybox.min.css">
+    
+    
+      
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="ait" data-md-color-primary="" data-md-color-accent="">
+      
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#cli-reference" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header-nav md-grid" aria-label="Header">
+    <a href="https://ait-aecid.github.io/kyoushi-dataset/" title="Cyber Range Kyoushi Dataset" class="md-header-nav__button md-logo" aria-label="Cyber Range Kyoushi Dataset">
+      
+  <img src="../images/cr_icon.svg" alt="logo">
+
+    </a>
+    <label class="md-header-nav__button md-icon" for="__drawer">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2z"/></svg>
+    </label>
+    <div class="md-header-nav__title" data-md-component="header-title">
+      <div class="md-header-nav__ellipsis">
+        <div class="md-header-nav__topic">
+          <span class="md-ellipsis">
+            Cyber Range Kyoushi Dataset
+          </span>
+        </div>
+        <div class="md-header-nav__topic">
+          <span class="md-ellipsis">
+            
+              CLI Reference
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      <label class="md-header-nav__button md-icon" for="__search">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0116 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 019.5 16 6.5 6.5 0 013 9.5 6.5 6.5 0 019.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5z"/></svg>
+      </label>
+      
+<div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" data-md-state="active" required>
+      <label class="md-search__icon md-icon" for="__search">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0116 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 019.5 16 6.5 6.5 0 013 9.5 6.5 6.5 0 019.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5z"/></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"/></svg>
+      </label>
+      <button type="reset" class="md-search__icon md-icon" aria-label="Clear" data-md-component="search-reset" tabindex="-1">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>
+      </button>
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header-nav__source">
+        
+<a href="https://github.com/ait-aecid/kyoushi-dataset/" title="Go to repository" class="md-source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path d="M439.55 236.05L244 40.45a28.87 28.87 0 00-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 01-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 000 40.81l195.61 195.6a28.86 28.86 0 0040.8 0l194.69-194.69a28.86 28.86 0 000-40.81z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    kyoushi-dataset
+  </div>
+</a>
+      </div>
+    
+  </nav>
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="https://ait-aecid.github.io/kyoushi-dataset/" title="Cyber Range Kyoushi Dataset" class="md-nav__button md-logo" aria-label="Cyber Range Kyoushi Dataset">
+      
+  <img src="../images/cr_icon.svg" alt="logo">
+
+    </a>
+    Cyber Range Kyoushi Dataset
+  </label>
+  
+    <div class="md-nav__source">
+      
+<a href="https://github.com/ait-aecid/kyoushi-dataset/" title="Go to repository" class="md-source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path d="M439.55 236.05L244 40.45a28.87 28.87 0 00-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 01-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 000 40.81l195.61 195.6a28.86 28.86 0 0040.8 0l194.69-194.69a28.86 28.86 0 000-40.81z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    kyoushi-dataset
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        Overview
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="nav-2" type="checkbox" id="nav-2" >
+      
+      <label class="md-nav__link" for="nav-2">
+        Getting Started
+        <span class="md-nav__icon md-icon"></span>
+      </label>
+      <nav class="md-nav" aria-label="Getting Started" data-md-level="1">
+        <label class="md-nav__title" for="nav-2">
+          <span class="md-nav__icon md-icon"></span>
+          Getting Started
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting_started/intro/" class="md-nav__link">
+        Intro
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting_started/prepare/" class="md-nav__link">
+        Prepare Dataset
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting_started/process/" class="md-nav__link">
+        Process Dataset
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting_started/label/" class="md-nav__link">
+        Label Dataset
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting_started/sample/" class="md-nav__link">
+        Sample Labels
+      </a>
+    </li>
+  
+
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="nav-3" type="checkbox" id="nav-3" >
+      
+      <label class="md-nav__link" for="nav-3">
+        Examples
+        <span class="md-nav__icon md-icon"></span>
+      </label>
+      <nav class="md-nav" aria-label="Examples" data-md-level="1">
+        <label class="md-nav__title" for="nav-3">
+          <span class="md-nav__icon md-icon"></span>
+          Examples
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/process/" class="md-nav__link">
+        Dataset Processing
+      </a>
+    </li>
+  
+
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../processors/" class="md-nav__link">
+        Dataset Processors
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../rules/" class="md-nav__link">
+        Labeling Rules
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+    
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" data-md-toggle="toc" type="checkbox" id="__toc">
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          CLI Reference
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        CLI Reference
+      </a>
+      
+        
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#cr-kyoushi-dataset" class="md-nav__link">
+    cr-kyoushi-dataset
+  </a>
+  
+    <nav class="md-nav" aria-label="cr-kyoushi-dataset">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#cr-kyoushi-dataset-label" class="md-nav__link">
+    label
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cr-kyoushi-dataset-prepare" class="md-nav__link">
+    prepare
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cr-kyoushi-dataset-process" class="md-nav__link">
+    process
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cr-kyoushi-dataset-sample" class="md-nav__link">
+    sample
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cr-kyoushi-dataset-version" class="md-nav__link">
+    version
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="nav-7" type="checkbox" id="nav-7" >
+      
+      <label class="md-nav__link" for="nav-7">
+        Code Reference
+        <span class="md-nav__icon md-icon"></span>
+      </label>
+      <nav class="md-nav" aria-label="Code Reference" data-md-level="1">
+        <label class="md-nav__title" for="nav-7">
+          <span class="md-nav__icon md-icon"></span>
+          Code Reference
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/config/" class="md-nav__link">
+        Config
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/elasticsearch/" class="md-nav__link">
+        Elasticsearch
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/labels/" class="md-nav__link">
+        Labels
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/parser/" class="md-nav__link">
+        Parser
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/pcap/" class="md-nav__link">
+        PCAP Utilities
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/processors/" class="md-nav__link">
+        Processors
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/sample/" class="md-nav__link">
+        Sampling
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/templates/" class="md-nav__link">
+        Templates
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/utils/" class="md-nav__link">
+        Utility Functions
+      </a>
+    </li>
+  
+
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../contributing/" class="md-nav__link">
+        Contributing
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../license/" class="md-nav__link">
+        License
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#cr-kyoushi-dataset" class="md-nav__link">
+    cr-kyoushi-dataset
+  </a>
+  
+    <nav class="md-nav" aria-label="cr-kyoushi-dataset">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#cr-kyoushi-dataset-label" class="md-nav__link">
+    label
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cr-kyoushi-dataset-prepare" class="md-nav__link">
+    prepare
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cr-kyoushi-dataset-process" class="md-nav__link">
+    process
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cr-kyoushi-dataset-sample" class="md-nav__link">
+    sample
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cr-kyoushi-dataset-version" class="md-nav__link">
+    version
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          <div class="md-content">
+            <article class="md-content__inner md-typeset">
+              
+                
+                  <a href="https://github.com/ait-aecid/kyoushi-dataset/edit/main/docs/cli.md" title="Edit this page" class="md-content__button md-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"/></svg>
+                  </a>
+                
+                
+                <h1 id="cli-reference">CLI Reference<a class="headerlink" href="#cli-reference" title="Permanent link">&para;</a></h1>
+<p>This page provides documentation for our command line tools.</p>
+<!--
+   The macros plugin seems to eat this block if there is nothing after the finishing line break.
+   Marking this as raw for now as the closing tag will become the additional content.
+-->
+
+<h2 id="cr-kyoushi-dataset">cr-kyoushi-dataset<a class="headerlink" href="#cr-kyoushi-dataset" title="Permanent link">&para;</a></h2>
+<p>Run Cyber Range Kyoushi Dataset.</p>
+<p><strong>Usage:</strong></p>
+<div class="highlight"><pre><span></span><code>cr-kyoushi-dataset [OPTIONS] COMMAND [ARGS]...
+</code></pre></div>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--dataset</code>, <code>-d</code></td>
+<td>directory</td>
+<td>The dataset to process</td>
+<td><code>./</code></td>
+</tr>
+<tr>
+<td><code>--logstash</code>, <code>-l</code></td>
+<td>file</td>
+<td>The logstash binary to use for parsing</td>
+<td><code>/usr/share/logstash/bin/logstash</code></td>
+</tr>
+<tr>
+<td><code>--elasticsearch</code>, <code>-e</code></td>
+<td>text</td>
+<td>The connection string for the elasticsearch database</td>
+<td><code>http://127.0.0.1:9200</code></td>
+</tr>
+<tr>
+<td><code>--help</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="cr-kyoushi-dataset-label">cr-kyoushi-dataset label<a class="headerlink" href="#cr-kyoushi-dataset-label" title="Permanent link">&para;</a></h3>
+<p>Apply the labeling rules to the dataset</p>
+<p>RULE_DIRS The directories from which to load the label rules (defaults to <dataset dir>/rules).
+          Relative paths start at the dataset dir.</p>
+<p>Rules are automatically loaded from all *.json, *.yaml, *.yml files in the given rule dirs.</p>
+<p><strong>Usage:</strong></p>
+<div class="highlight"><pre><span></span><code>cr-kyoushi-dataset label [OPTIONS] [RULE_DIRS]...
+</code></pre></div>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--dataset-config</code></td>
+<td>file</td>
+<td>The dataset configuration file (defaults to <dataset dir>/dataset.yaml)</td>
+<td><code>./dataset.yaml</code></td>
+</tr>
+<tr>
+<td><code>--label-object</code></td>
+<td>text</td>
+<td>The field to store the labels in</td>
+<td><code>kyoushi_labels</code></td>
+</tr>
+<tr>
+<td><code>--label</code> / <code>--no-label</code></td>
+<td>boolean</td>
+<td>If the labeling rules should be applied or not</td>
+<td><code>True</code></td>
+</tr>
+<tr>
+<td><code>--write</code> / <code>--no-write</code></td>
+<td>boolean</td>
+<td>If the label files should be written or not</td>
+<td><code>True</code></td>
+</tr>
+<tr>
+<td><code>--write-skip-files</code></td>
+<td>text</td>
+<td>Optionally a comma separated list of log files to not write labels for.(if this is not set label files will be written for all files with labeled log lines)</td>
+<td><em>required</em></td>
+</tr>
+<tr>
+<td><code>--write-exclude-index</code>, <code>-e</code></td>
+<td>text</td>
+<td>Comma separated list of indices to explicitly exclude when writing label files</td>
+<td><em>required</em></td>
+</tr>
+<tr>
+<td><code>--help</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="cr-kyoushi-dataset-prepare">cr-kyoushi-dataset prepare<a class="headerlink" href="#cr-kyoushi-dataset-prepare" title="Permanent link">&para;</a></h3>
+<p><strong>Usage:</strong></p>
+<div class="highlight"><pre><span></span><code>cr-kyoushi-dataset prepare [OPTIONS]
+</code></pre></div>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--gather-dir</code>, <code>-g</code></td>
+<td>directory</td>
+<td>The logs and facts gather source directory. This directory will be copied to the dataset directory.</td>
+<td><em>required</em></td>
+</tr>
+<tr>
+<td><code>--process-dir</code>, <code>-p</code></td>
+<td>directory</td>
+<td>The processing source directory (containing the process pipelines, templates and rules.</td>
+<td><em>required</em></td>
+</tr>
+<tr>
+<td><code>--name</code></td>
+<td>text</td>
+<td>The name to use for the dataset (will be prompted if not supplied)</td>
+<td><em>required</em></td>
+</tr>
+<tr>
+<td><code>--start</code></td>
+<td>datetime (<code>%Y-%m-%d</code> &#x7C; <code>%Y-%m-%dT%H:%M:%S</code> &#x7C; <code>%Y-%m-%d %H:%M:%S</code> &#x7C; <code>%Y-%m-%dT%H:%M:%S.%f</code> &#x7C; <code>%Y-%m-%d %H:%M:%S.%f</code> &#x7C; <code>%Y-%m-%dT%H:%M:%S%z</code> &#x7C; <code>%Y-%m-%dT%H:%M:%SZ</code> &#x7C; <code>%Y-%m-%dT%H:%M:%S.%f%z</code> &#x7C; <code>%Y-%m-%dT%H:%M:%S.%fZ</code>)</td>
+<td>The the datasets observation start time (will be prompted if not supplied)</td>
+<td><em>required</em></td>
+</tr>
+<tr>
+<td><code>--end</code></td>
+<td>datetime (<code>%Y-%m-%d</code> &#x7C; <code>%Y-%m-%dT%H:%M:%S</code> &#x7C; <code>%Y-%m-%d %H:%M:%S</code> &#x7C; <code>%Y-%m-%dT%H:%M:%S.%f</code> &#x7C; <code>%Y-%m-%d %H:%M:%S.%f</code> &#x7C; <code>%Y-%m-%dT%H:%M:%S%z</code> &#x7C; <code>%Y-%m-%dT%H:%M:%SZ</code> &#x7C; <code>%Y-%m-%dT%H:%M:%S.%f%z</code> &#x7C; <code>%Y-%m-%dT%H:%M:%S.%fZ</code>)</td>
+<td>The the datasets observation end time (will be prompted if not supplied)</td>
+<td><em>required</em></td>
+</tr>
+<tr>
+<td><code>--yes</code>, <code>-y</code></td>
+<td>boolean</td>
+<td>Affirm all confirmation prompts (use for non-interactive mode)</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--help</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="cr-kyoushi-dataset-process">cr-kyoushi-dataset process<a class="headerlink" href="#cr-kyoushi-dataset-process" title="Permanent link">&para;</a></h3>
+<p>Process the dataset and prepare it for labeling.</p>
+<p><strong>Usage:</strong></p>
+<div class="highlight"><pre><span></span><code>cr-kyoushi-dataset process [OPTIONS]
+</code></pre></div>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--config</code>, <code>-c</code></td>
+<td>file</td>
+<td>The processing configuration file (defaults to <dataset dir>/processing/process.yaml)</td>
+<td><code>./processing/process.yaml</code></td>
+</tr>
+<tr>
+<td><code>--dataset-config</code></td>
+<td>file</td>
+<td>The dataset configuration file (defaults to <dataset dir>/dataset.yaml)</td>
+<td><code>./dataset.yaml</code></td>
+</tr>
+<tr>
+<td><code>--skip-pre</code></td>
+<td>boolean</td>
+<td>Skip the pre processing phase</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--skip-parse</code></td>
+<td>boolean</td>
+<td>Skip the parsing phase</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--skip-post</code></td>
+<td>boolean</td>
+<td>Skip the post processing phase</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--help</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="cr-kyoushi-dataset-sample">cr-kyoushi-dataset sample<a class="headerlink" href="#cr-kyoushi-dataset-sample" title="Permanent link">&para;</a></h3>
+<p><strong>Usage:</strong></p>
+<div class="highlight"><pre><span></span><code>cr-kyoushi-dataset sample [OPTIONS] [SIZE]
+</code></pre></div>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--dataset-config</code></td>
+<td>file</td>
+<td>The dataset configuration file (defaults to <dataset dir>/dataset.yaml)</td>
+<td><code>./dataset.yaml</code></td>
+</tr>
+<tr>
+<td><code>--label-object</code></td>
+<td>text</td>
+<td>The field to store the labels in</td>
+<td><code>kyoushi_labels</code></td>
+</tr>
+<tr>
+<td><code>--label</code>, <code>-l</code></td>
+<td>text</td>
+<td>The label to get sample log lines for (if this is not set then unlabeled log lines will be sampled)</td>
+<td><em>required</em></td>
+</tr>
+<tr>
+<td><code>--from-timestamp</code></td>
+<td>datetime (<code>%Y-%m-%d</code> &#x7C; <code>%Y-%m-%dT%H:%M:%S</code> &#x7C; <code>%Y-%m-%d %H:%M:%S</code> &#x7C; <code>%Y-%m-%dT%H:%M:%S.%f</code> &#x7C; <code>%Y-%m-%d %H:%M:%S.%f</code> &#x7C; <code>%Y-%m-%dT%H:%M:%S%z</code> &#x7C; <code>%Y-%m-%dT%H:%M:%SZ</code> &#x7C; <code>%Y-%m-%dT%H:%M:%S.%f%z</code> &#x7C; <code>%Y-%m-%dT%H:%M:%S.%fZ</code>)</td>
+<td>Optional minium timestamp for log rows to consider</td>
+<td><em>required</em></td>
+</tr>
+<tr>
+<td><code>--until-timestamp</code></td>
+<td>datetime (<code>%Y-%m-%d</code> &#x7C; <code>%Y-%m-%dT%H:%M:%S</code> &#x7C; <code>%Y-%m-%d %H:%M:%S</code> &#x7C; <code>%Y-%m-%dT%H:%M:%S.%f</code> &#x7C; <code>%Y-%m-%d %H:%M:%S.%f</code> &#x7C; <code>%Y-%m-%dT%H:%M:%S%z</code> &#x7C; <code>%Y-%m-%dT%H:%M:%SZ</code> &#x7C; <code>%Y-%m-%dT%H:%M:%S.%f%z</code> &#x7C; <code>%Y-%m-%dT%H:%M:%S.%fZ</code>)</td>
+<td>Optional maximum timestamp for log rows to consider</td>
+<td><em>required</em></td>
+</tr>
+<tr>
+<td><code>--files</code>, <code>-f</code></td>
+<td>text</td>
+<td>Optionally a comma separated list of files to get sample log lines from (if this is not set all files matching the label option will be drawn from).</td>
+<td><em>required</em></td>
+</tr>
+<tr>
+<td><code>--related</code>, <code>-r</code></td>
+<td>text</td>
+<td>Optionally a comma separated list of elasticsearch indices for which to include the log line, that is closest (based on the timestamp) to the selected sample, as meta information. Given indices are prefixed with the dataset name.</td>
+<td><em>required</em></td>
+</tr>
+<tr>
+<td><code>--default-label</code></td>
+<td>text</td>
+<td>The label to assign to unlabeled log row (e.g., when --label is not used)</td>
+<td><code>normal</code></td>
+</tr>
+<tr>
+<td><code>--index</code>, <code>-i</code></td>
+<td>text</td>
+<td>Comma separated list of indices to consider for sampling</td>
+<td><em>required</em></td>
+</tr>
+<tr>
+<td><code>--exclude-index</code>, <code>-e</code></td>
+<td>text</td>
+<td>Comma separated list of indices to explicitly exclude from the sampling</td>
+<td><em>required</em></td>
+</tr>
+<tr>
+<td><code>--seed</code>, <code>-s</code></td>
+<td>text</td>
+<td>The random seed to use for the sampling query</td>
+<td><em>required</em></td>
+</tr>
+<tr>
+<td><code>--seed-field</code></td>
+<td>text</td>
+<td>The field to use for the elasticsearch random score</td>
+<td><code>_seq_no</code></td>
+</tr>
+<tr>
+<td><code>--list</code></td>
+<td>boolean</td>
+<td>Only list the available labels with their log line counts as JSON array</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--help</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="cr-kyoushi-dataset-version">cr-kyoushi-dataset version<a class="headerlink" href="#cr-kyoushi-dataset-version" title="Permanent link">&para;</a></h3>
+<p>Get the library version.</p>
+<p><strong>Usage:</strong></p>
+<div class="highlight"><pre><span></span><code>cr-kyoushi-dataset version [OPTIONS]
+</code></pre></div>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--help</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+                
+              
+              
+                
+
+
+              
+            </article>
+          </div>
+        </div>
+      </main>
+      
+        
+<footer class="md-footer">
+  
+    <div class="md-footer-nav">
+      <nav class="md-footer-nav__inner md-grid" aria-label="Footer">
+        
+          <a href="../rules/" class="md-footer-nav__link md-footer-nav__link--prev" rel="prev">
+            <div class="md-footer-nav__button md-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"/></svg>
+            </div>
+            <div class="md-footer-nav__title">
+              <div class="md-ellipsis">
+                <span class="md-footer-nav__direction">
+                  Previous
+                </span>
+                Labeling Rules
+              </div>
+            </div>
+          </a>
+        
+        
+          <a href="../reference/config/" class="md-footer-nav__link md-footer-nav__link--next" rel="next">
+            <div class="md-footer-nav__title">
+              <div class="md-ellipsis">
+                <span class="md-footer-nav__direction">
+                  Next
+                </span>
+                Config
+              </div>
+            </div>
+            <div class="md-footer-nav__button md-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11H4z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    </div>
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-footer-copyright">
+        
+        Made with
+        <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+          Material for MkDocs
+        </a>
+      </div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    
+      <script src="../assets/javascripts/vendor.18f0862e.min.js"></script>
+      <script src="../assets/javascripts/bundle.994580cf.min.js"></script><script id="__lang" type="application/json">{"clipboard.copy": "Copy to clipboard", "clipboard.copied": "Copied to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.placeholder": "Type to start searching", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.term.missing": "Missing"}</script>
+      
+      <script>
+        app = initialize({
+          base: "..",
+          features: [],
+          search: Object.assign({
+            worker: "../assets/javascripts/worker/search.9c0e82ba.min.js"
+          }, typeof search !== "undefined" && search)
+        })
+      </script>
+      
+        <script src="../js/jquery-3.5.1.min.js"></script>
+      
+        <script src="../js/jquery.fancybox.min.js"></script>
+      
+    
+  </body>
+</html>

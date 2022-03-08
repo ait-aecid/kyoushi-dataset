@@ -1,0 +1,28 @@
+
+[data-md-color-scheme="ait"] {
+    --md-primary-fg-color:        #707f87;
+    --md-primary-fg-color--light: #d9dbde;
+    --md-primary-fg-color--dark:  #7d8386;
+
+    --md-accent-fg-color:                hsla(358, 82%, 26%, 1);
+    --md-accent-fg-color--transparent:   hsla(358, 82%, 26%, 0.1);
+    --md-accent-bg-color:                hsla(0, 0%, 100%, 1);
+    --md-accent-bg-color--light:         hsla(0, 0%, 100%, 0.7);
+
+}
+
+.md-grid {
+    max-width: 1440px;
+}
+
+div.doc-contents:not(.first) {
+    padding-left: 25px;
+    border-left: 4px solid rgba(230, 230, 230);
+    margin-bottom: 80px;
+}
+
+/* For pieces of Markdown rendered in table cells. */
+td p {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+}
